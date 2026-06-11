@@ -32,22 +32,67 @@ restaurant-api/
 
 ---
 
-## Instalación
+## Requisitos previos
 
-```bash
-# 1. Clonar e instalar dependencias
+- **Python 3.11+** → https://www.python.org/downloads/ (en Windows, marca *"Add Python to PATH"* al instalar)
+- **Docker Desktop** → https://www.docker.com/products/docker-desktop/ (para levantar PostgreSQL sin instalarlo a mano)
+- **Git** → https://git-scm.com/download/win
+
+---
+
+## Instalación (Windows · paso a paso)
+
+Abre **PowerShell** y ejecuta:
+
+```powershell
+# 1. Clonar el proyecto
+git clone https://github.com/Albergod/restaurant-api.git
+cd restaurant-api
+
+# 2. Levantar PostgreSQL con Docker (debe estar abierto Docker Desktop)
+docker compose up -d
+#    Esto crea una base de datos lista en localhost:5432
+#    usuario: restaurant · contraseña: restaurant · base: restaurant_db
+
+# 3. Crear y activar un entorno virtual de Python
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+#    Si PowerShell bloquea el script, ejecuta una vez:
+#    Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+
+# 4. Instalar las dependencias
 pip install -r requirements.txt
 
-# 2. Configurar variables de entorno
-cp .env.example .env
-# Editar .env con tu URL de PostgreSQL y una SECRET_KEY segura
+# 5. Configurar variables de entorno
+copy .env.example .env
+#    El .env ya viene configurado para el Docker del paso 2.
+#    Solo cambia SECRET_KEY por una clave larga y aleatoria.
 
-# 3. Iniciar el servidor
+# 6. Iniciar el servidor
 uvicorn app.main:app --reload
 ```
 
 La API estará en `http://localhost:8000`  
-Documentación automática: `http://localhost:8000/docs`
+Documentación interactiva: `http://localhost:8000/docs`
+
+> Las tablas de la base de datos se crean **automáticamente** la primera vez
+> que arranca el servidor. No hace falta correr migraciones.
+
+---
+
+## Comandos útiles de Docker (la base de datos)
+
+```powershell
+docker compose up -d      # Encender PostgreSQL en segundo plano
+docker compose stop       # Apagar (los datos se conservan)
+docker compose start      # Volver a encender
+docker compose down       # Apagar y borrar el contenedor (los datos se conservan en el volumen)
+docker compose down -v    # Apagar y BORRAR TODO incluidos los datos
+docker compose logs -f db # Ver qué hace la base de datos
+```
+
+Si cambiaste el usuario/contraseña en `docker-compose.yml`, recuerda
+ajustar también `DATABASE_URL` en tu `.env`.
 
 ---
 
@@ -140,3 +185,26 @@ ws.send("Hola, necesito ayuda con mi pedido")
 5. Cocina ve el pedido → lo marca en preparación y luego listo
 6. Mesero lo entrega → (status: delivered) → mesa se libera
 ```
+
+---
+
+## Dependencias (qué hace cada una y por qué está)
+
+Estas son las librerías de `requirements.txt` y su rol en el proyecto:
+
+| Paquete | ¿Para qué sirve? |
+|---------|------------------|
+| **fastapi** | El framework web. Define las rutas (`/api/...`), valida datos y genera la documentación automática en `/docs`. Es el corazón del proyecto. |
+| **uvicorn[standard]** | El servidor que *ejecuta* la app de FastAPI. Es lo que arrancas con `uvicorn app.main:app`. El `[standard]` añade soporte rápido para WebSocket y recarga automática. |
+| **sqlalchemy** | El ORM: permite trabajar con la base de datos usando clases de Python en vez de escribir SQL a mano. Define las tablas (`app/models/`). |
+| **asyncpg** | El driver que conecta SQLAlchemy con PostgreSQL de forma **asíncrona** (rápida). Es el que usa la `DATABASE_URL` (`postgresql+asyncpg://...`). |
+| **psycopg2-binary** | Driver de PostgreSQL **síncrono**. Lo usan herramientas como Alembic (migraciones) que no trabajan en modo async. |
+| **alembic** | Herramienta de *migraciones*: versiona los cambios en la estructura de la base de datos. (Listo para usar a futuro; ahora las tablas se crean solas al arrancar.) |
+| **pydantic** | Valida y da forma a los datos que entran y salen de la API (los "schemas" en `app/schemas/`). Si alguien manda datos mal formados, los rechaza. |
+| **pydantic-settings** | Lee la configuración desde el archivo `.env` (la `DATABASE_URL`, `SECRET_KEY`, etc.) y la convierte en objetos de Python. |
+| **python-jose[cryptography]** | Crea y verifica los **tokens JWT** del login. Es lo que mantiene la sesión segura del usuario. |
+| **passlib[bcrypt]** | Cifra (hashea) las contraseñas antes de guardarlas. Nunca se guarda la contraseña en texto plano. |
+| **python-multipart** | Necesario para que FastAPI pueda recibir formularios y subidas de archivos (por ejemplo, el formulario de login). |
+| **websockets** | Soporte de bajo nivel para el **chat en tiempo real** (las rutas `WS /api/chat/ws/...`). |
+| **httpx** | Cliente HTTP. Se usa para hacer peticiones a servicios externos y en las pruebas de la API. |
+
