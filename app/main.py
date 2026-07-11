@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.database import engine, Base
-from app.routers import auth, menu, orders, tables, chat, loyalty
+from app.routers import auth, menu, orders, tables, chat, loyalty, users
 
 app = FastAPI(
     title="Restaurant API",
@@ -26,6 +26,7 @@ app.include_router(orders.router)
 app.include_router(tables.router)
 app.include_router(chat.router)
 app.include_router(loyalty.router)
+app.include_router(users.router)
 
 
 @app.on_event("startup")

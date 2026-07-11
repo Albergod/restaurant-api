@@ -8,6 +8,7 @@ pkgs.mkShell {
     python312
     python312Packages.pip
     python312Packages.virtualenv
+    stdenv.cc.cc.lib
 
     # PostgreSQL cliente (para psql, pg_dump, etc.)
     postgresql
@@ -18,7 +19,7 @@ pkgs.mkShell {
   ];
 
   shellHook = ''
-  export LD_LIBRARY_PATH=$NIX_LD_LIBRARY_PATH:$LD_LIBRARY_PATH
+  export LD_LIBRARY_PATH=${pkgs.stdenv.cc.cc.lib}/lib:$NIX_LD_LIBRARY_PATH:$LD_LIBRARY_PATH
 
   # Levantar PostgreSQL si no está corriendo
   if ! docker ps | grep -q restaurant-db; then
