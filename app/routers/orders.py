@@ -21,6 +21,15 @@ async def _recalc_total(order: Order) -> float:
     return sum(item.unit_price * item.quantity for item in order.items)
 
 
+async def _attach_table_qr(order: Order, db: AsyncSession):
+    """Populate table_qr from the table relationship if not already set."""
+    if order.table_id and not getattr(order, 'table_qr', None):
+        result = await db.execute(select(Table.qr_code).where(Table.id == order.table_id))
+        qr = result.scalar_one_or_none()
+        if qr:
+            order.table_qr = qr
+
+
 @router.post("/", response_model=OrderOut, status_code=201)
 async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
     """
@@ -83,7 +92,9 @@ async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Order).where(Order.id == order.id).options(selectinload(Order.items))
     )
-    return result.scalar_one()
+    order = result.scalar_one()
+    await _attach_table_qr(order, db)
+    return order
 
 
 @router.get("/", response_model=List[OrderOut])
@@ -101,7 +112,10 @@ async def list_orders(
         query = query.where(Order.status == status)
 
     result = await db.execute(query)
-    return result.scalars().all()
+    orders = result.scalars().all()
+    for o in orders:
+        await _attach_table_qr(o, db)
+    return orders
 
 
 @router.get("/kitchen", response_model=List[KitchenOrderOut])
@@ -132,6 +146,7 @@ async def get_order(order_id: int, db: AsyncSession = Depends(get_db)):
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    await _attach_table_qr(order, db)
     return order
 
 
@@ -183,6 +198,7 @@ async def update_order_status(
     db.add(history)
     await db.commit()
     await db.refresh(order)
+    await _attach_table_qr(order, db)
     return order
 
 

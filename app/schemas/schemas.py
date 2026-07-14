@@ -61,6 +61,7 @@ class TableOut(BaseModel):
     id: int
     number: int
     qr_code: Optional[str]
+    qr_image: Optional[str] = None
     capacity: int
     is_occupied: bool
 
@@ -173,6 +174,7 @@ class OrderItemOut(BaseModel):
 class OrderOut(BaseModel):
     id: int
     table_id: Optional[int]
+    table_qr: Optional[str] = None
     waiter_id: Optional[int]
     customer_name: Optional[str]
     order_type: OrderType

@@ -7,10 +7,11 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.models import Category, Product, UserRole
+from app.models.models import Category, Product, Table, UserRole
 from app.schemas.schemas import (
     CategoryCreate, CategoryOut, CategoryWithProducts,
-    ProductCreate, ProductUpdate, ProductOut
+    ProductCreate, ProductUpdate, ProductOut,
+    TableOut
 )
 
 router = APIRouter(prefix="/api/menu", tags=["Menú"])
@@ -52,6 +53,16 @@ async def get_promotions(db: AsyncSession = Depends(get_db)):
         select(Product).where(Product.is_promoted == True, Product.is_available == True)
     )
     return result.scalars().all()
+
+
+@router.get("/table-by-qr/{qr_code}", response_model=TableOut)
+async def get_table_by_qr(qr_code: str, db: AsyncSession = Depends(get_db)):
+    """Obtener info de una mesa por su código QR. Público (lo necesita el menú)."""
+    result = await db.execute(select(Table).where(Table.qr_code == qr_code))
+    table = result.scalar_one_or_none()
+    if not table:
+        raise HTTPException(status_code=404, detail="Mesa no encontrada")
+    return table
 
 
 @router.post("/categories", response_model=CategoryOut, status_code=201)

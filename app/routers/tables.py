@@ -6,11 +6,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
+from app.core.qr import generate_qr_image
 from app.core.security import get_current_user
 from app.models.models import Table, UserRole
 from app.schemas.schemas import TableCreate, TableOut
 
 router = APIRouter(prefix="/api/tables", tags=["Mesas"])
+
+FRONTEND_URL = "http://localhost:3000"
+
+
+def _attach_qr(table):
+    table.qr_image = generate_qr_image(f"{FRONTEND_URL}/menu/{table.qr_code}")
+    return table
 
 
 @router.post("/", response_model=TableOut, status_code=201)
@@ -35,7 +43,7 @@ async def create_table(
     db.add(table)
     await db.commit()
     await db.refresh(table)
-    return table
+    return _attach_qr(table)
 
 
 @router.get("/", response_model=List[TableOut])
@@ -45,7 +53,10 @@ async def list_tables(
 ):
     """Listar todas las mesas con estado de ocupación. Meseros y admin."""
     result = await db.execute(select(Table).order_by(Table.number))
-    return result.scalars().all()
+    tables = result.scalars().all()
+    for t in tables:
+        _attach_qr(t)
+    return tables
 
 
 @router.get("/{table_id}", response_model=TableOut)
@@ -55,7 +66,7 @@ async def get_table(table_id: int, db: AsyncSession = Depends(get_db)):
     table = result.scalar_one_or_none()
     if not table:
         raise HTTPException(status_code=404, detail="Mesa no encontrada")
-    return table
+    return _attach_qr(table)
 
 
 @router.post("/{table_id}/regenerate-qr", response_model=TableOut)
@@ -76,4 +87,4 @@ async def regenerate_qr(
     table.qr_code = str(uuid.uuid4())
     await db.commit()
     await db.refresh(table)
-    return table
+    return _attach_qr(table)
