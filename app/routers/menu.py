@@ -1,13 +1,13 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.models import Category, Product, Table, UserRole
+from app.models.models import Category, OrderItem, Product, Table, UserRole
 from app.schemas.schemas import (
     CategoryCreate, CategoryOut, CategoryWithProducts,
     ProductCreate, ProductUpdate, ProductOut,
@@ -160,6 +160,9 @@ async def delete_product(
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    # Eliminar referencias en order_items antes de borrar el producto
+    await db.execute(delete(OrderItem).where(OrderItem.product_id == product_id))
 
     await db.delete(product)
     await db.commit()
