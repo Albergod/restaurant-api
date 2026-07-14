@@ -45,7 +45,6 @@ async def open_chat_session(table_qr: str, db: AsyncSession = Depends(get_db)):
     db.add(session)
     await db.commit()
     await db.refresh(session)
-    session.messages = []
     return session
 
 
