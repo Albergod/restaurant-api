@@ -38,7 +38,6 @@ export default function KitchenOrderCard({ order, onUpdateStatus }) {
             {STATUS_LABELS[order.status]}
           </span>
         </div>
-        </div>
 
         <div className="mb-3 space-y-1">
           {(order.items || []).map((item, i) => (
