@@ -9,8 +9,9 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.models import (
+    ChatMessage, ChatSession, MessageSender,
     Order, OrderItem, OrderStatus, OrderStatusHistory,
-    Product, Table, UserRole
+    Product, Table, UserRole,
 )
 from app.schemas.schemas import OrderCreate, OrderOut, OrderStatusUpdate, KitchenOrderOut
 
@@ -22,7 +23,7 @@ async def _recalc_total(order: Order) -> float:
 
 
 async def _attach_table_info(order: Order, db: AsyncSession):
-    """Populate table_qr and table_number from the table relationship."""
+    """Populate table_qr, table_number, and chat info from the table relationship."""
     if order.table_id:
         result = await db.execute(
             select(Table.qr_code, Table.number).where(Table.id == order.table_id)
@@ -31,6 +32,27 @@ async def _attach_table_info(order: Order, db: AsyncSession):
         if row:
             order.table_qr = row.qr_code
             order.table_number = row.number
+
+        # Check if there is an active chat session for this table
+        session_result = await db.execute(
+            select(ChatSession.id).where(
+                ChatSession.table_id == order.table_id,
+                ChatSession.is_open == True,
+            )
+        )
+        session_id = session_result.scalar_one_or_none()
+        if session_id:
+            order.has_active_chat = True
+            order.active_chat_session_id = session_id
+            unread = await db.execute(
+                select(ChatMessage)
+                .where(
+                    ChatMessage.session_id == session_id,
+                    ChatMessage.sender == MessageSender.customer,
+                    ChatMessage.is_read == False,
+                )
+            )
+            order.unread_count = len(unread.scalars().all())
 
 
 @router.post("/", response_model=OrderOut, status_code=201)

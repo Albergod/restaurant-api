@@ -177,6 +177,9 @@ class OrderOut(BaseModel):
     table_id: Optional[int]
     table_qr: Optional[str] = None
     table_number: Optional[int] = None
+    has_active_chat: bool = False
+    unread_count: int = 0
+    active_chat_session_id: Optional[int] = None
     waiter_id: Optional[int]
     customer_name: Optional[str]
     order_type: OrderType
@@ -233,6 +236,9 @@ class KitchenOrderOut(BaseModel):
     id: int
     table_id: Optional[int]
     table_number: Optional[int] = None
+    has_active_chat: bool = False
+    unread_count: int = 0
+    active_chat_session_id: Optional[int] = None
     order_type: OrderType
     status: OrderStatus
     created_at: datetime

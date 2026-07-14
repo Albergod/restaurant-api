@@ -2,13 +2,13 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db, AsyncSessionLocal
 from app.core.security import get_current_user, decode_token
 from app.models.models import ChatMessage, ChatSession, MessageSender, Table, UserRole
-from app.schemas.schemas import ChatMessageCreate, ChatMessageOut, ChatSessionOut
+from app.schemas.schemas import ChatMessageCreate, ChatMessageOut, ChatSessionOut, OrderOut
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
 
@@ -47,6 +47,34 @@ async def open_chat_session(table_qr: str, db: AsyncSession = Depends(get_db)):
     await db.refresh(session)
     session.messages = []
     return session
+
+
+@router.get("/sessions/active", response_model=List[dict])
+async def list_active_sessions(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Listar sesiones de chat abiertas con el número de mesa. Meseros y admin."""
+    if current_user["role"] not in [UserRole.waiter, UserRole.admin]:
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+
+    result = await db.execute(
+        select(ChatSession)
+        .where(ChatSession.is_open == True)
+        .options(selectinload(ChatSession.messages), selectinload(ChatSession.table))
+    )
+    sessions = result.scalars().all()
+    return [
+        {
+            "id": s.id,
+            "table_id": s.table_id,
+            "table_number": s.table.number if s.table else None,
+            "created_at": s.created_at,
+            "unread_count": sum(1 for m in s.messages if not m.is_read and m.sender == MessageSender.customer),
+            "last_message": s.messages[-1].content if s.messages else None,
+        }
+        for s in sessions
+    ]
 
 
 @router.get("/sessions/{session_id}", response_model=ChatSessionOut)
@@ -88,6 +116,27 @@ async def send_message_rest(
     await db.commit()
     await db.refresh(msg)
     return msg
+
+
+@router.patch("/sessions/{session_id}/read", status_code=204)
+async def mark_sessions_read(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Marcar todos los mensajes no leídos del cliente como leídos. Meseros y admin."""
+    if current_user["role"] not in [UserRole.waiter, UserRole.admin, UserRole.kitchen]:
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+    await db.execute(
+        update(ChatMessage)
+        .where(
+            ChatMessage.session_id == session_id,
+            ChatMessage.sender == MessageSender.customer,
+            ChatMessage.is_read == False,
+        )
+        .values(is_read=True)
+    )
+    await db.commit()
 
 
 @router.patch("/sessions/{session_id}/close", status_code=204)

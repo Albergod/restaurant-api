@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { apiFetch, connectWebSocket } from "@/lib/api"
+import { apiFetch, connectWebSocket, API_URL } from "@/lib/api"
 import {
   MessageSquare,
   Send,
@@ -34,6 +34,17 @@ export default function ChatPage() {
         if (!cancelled) setMessages(session.messages || [])
       } catch (e) { /* no token = no history */ }
     }
+
+    async function markAsRead() {
+      try {
+        await fetch(`${API_URL}/api/chat/sessions/${sessionId}/read`, {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        })
+      } catch (e) { /* ignore */ }
+    }
+
+    markAsRead()
 
     function connect() {
       const ws = connectWebSocket(sessionId, (msg) => {

@@ -1,6 +1,7 @@
 "use client"
 
-import { Clock, Package, ChefHat, CheckCircle2, ClipboardList, XCircle, CheckCircle2 as CheckCircle } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Clock, Package, ChefHat, CheckCircle2, ClipboardList, XCircle, CheckCircle2 as CheckCircle, MessageSquare } from "lucide-react"
 
 const STATUS_LABELS = {
   pending: "Pendiente", confirmed: "Confirmado", preparing: "En preparación",
@@ -24,6 +25,7 @@ const BORDER_COLORS = {
 }
 
 export default function OrderCard({ order, onUpdateStatus }) {
+  const router = useRouter()
   const StatusIcon = STATUS_ICONS[order.status] || Clock
   const borderColor = BORDER_COLORS[order.status] || "border-l-gray-200"
 
@@ -35,9 +37,23 @@ export default function OrderCard({ order, onUpdateStatus }) {
             <p className="text-base font-bold text-gray-900">Pedido #{order.id}</p>
             <p className="text-xs text-gray-500">Mesa {order.table_number ? `#${order.table_number}` : "—"}</p>
           </div>
-          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[order.status] || "bg-gray-100 text-gray-600"}`}>
-            <StatusIcon className="h-3 w-3" />{STATUS_LABELS[order.status] || order.status}
-          </span>
+          <div className="flex items-center gap-2">
+            {order.has_active_chat && (
+              <button onClick={() => router.push(`/chat/${order.active_chat_session_id}`)}
+                className="relative flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 transition-colors hover:bg-blue-100"
+                title="Chat con la mesa">
+                <MessageSquare className="h-3.5 w-3.5" />
+                {order.unread_count > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                    {order.unread_count > 9 ? '9+' : order.unread_count}
+                  </span>
+                )}
+              </button>
+            )}
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[order.status] || "bg-gray-100 text-gray-600"}`}>
+              <StatusIcon className="h-3 w-3" />{STATUS_LABELS[order.status] || order.status}
+            </span>
+          </div>
         </div>
 
         <div className="mb-3 space-y-1">

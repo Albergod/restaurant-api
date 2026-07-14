@@ -31,6 +31,7 @@ export async function apiFetch(path, options = {}) {
     const msg = `${res.status}: ${body}`
     throw new Error(msg)
   }
+  if (res.status === 204) return null
   return res.json()
 }
 

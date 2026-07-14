@@ -1,6 +1,7 @@
 "use client"
 
-import { Timer, ArrowRight, CheckCircle2, Clock, CookingPot } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Timer, ArrowRight, CheckCircle2, Clock, CookingPot, MessageSquare } from "lucide-react"
 
 const STATUS_LABELS = {
   pending: "Pendiente", confirmed: "Confirmado", preparing: "En preparación",
@@ -18,6 +19,7 @@ function getTimeAgo(dateString) {
 }
 
 export default function KitchenOrderCard({ order, onUpdateStatus }) {
+  const router = useRouter()
   const isConfirmed = order.status === "confirmed"
   const borderColor = isConfirmed ? "border-l-amber-500" : "border-l-orange-500"
   const badgeColor = isConfirmed ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
@@ -34,9 +36,23 @@ export default function KitchenOrderCard({ order, onUpdateStatus }) {
               <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{getTimeAgo(order.created_at)}</span>
             </div>
           </div>
-          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeColor}`}>
-            {STATUS_LABELS[order.status]}
-          </span>
+          <div className="flex items-center gap-2">
+            {order.has_active_chat && (
+              <button onClick={() => router.push(`/chat/${order.active_chat_session_id}`)}
+                className="relative flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 transition-colors hover:bg-blue-100"
+                title="Chat con la mesa">
+                <MessageSquare className="h-3.5 w-3.5" />
+                {order.unread_count > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                    {order.unread_count > 9 ? '9+' : order.unread_count}
+                  </span>
+                )}
+              </button>
+            )}
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeColor}`}>
+              {STATUS_LABELS[order.status]}
+            </span>
+          </div>
         </div>
 
         <div className="mb-3 space-y-1">
