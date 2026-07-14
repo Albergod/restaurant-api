@@ -51,7 +51,8 @@ export default function WaiterPage() {
 
     loadOrders()
     ws = connectOrdersWebSocket(() => loadOrders())
-    return () => { cancelled = true; if (ws) ws.close() }
+    const interval = setInterval(loadOrders, 5000)
+    return () => { cancelled = true; if (ws) ws.close(); clearInterval(interval) }
   }, [authorized, router])
 
   async function updateStatus(orderId, status) {
