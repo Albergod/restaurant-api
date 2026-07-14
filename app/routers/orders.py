@@ -21,13 +21,16 @@ async def _recalc_total(order: Order) -> float:
     return sum(item.unit_price * item.quantity for item in order.items)
 
 
-async def _attach_table_qr(order: Order, db: AsyncSession):
-    """Populate table_qr from the table relationship if not already set."""
-    if order.table_id and not getattr(order, 'table_qr', None):
-        result = await db.execute(select(Table.qr_code).where(Table.id == order.table_id))
-        qr = result.scalar_one_or_none()
-        if qr:
-            order.table_qr = qr
+async def _attach_table_info(order: Order, db: AsyncSession):
+    """Populate table_qr and table_number from the table relationship."""
+    if order.table_id:
+        result = await db.execute(
+            select(Table.qr_code, Table.number).where(Table.id == order.table_id)
+        )
+        row = result.one_or_none()
+        if row:
+            order.table_qr = row.qr_code
+            order.table_number = row.number
 
 
 @router.post("/", response_model=OrderOut, status_code=201)
@@ -90,10 +93,12 @@ async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
 
     # Cargar relaciones para la respuesta
     result = await db.execute(
-        select(Order).where(Order.id == order.id).options(selectinload(Order.items))
+        select(Order).where(Order.id == order.id).options(
+            selectinload(Order.items).selectinload(OrderItem.product)
+        )
     )
     order = result.scalar_one()
-    await _attach_table_qr(order, db)
+    await _attach_table_info(order, db)
     return order
 
 
@@ -104,7 +109,11 @@ async def list_orders(
     current_user: dict = Depends(get_current_user),
 ):
     """Listar pedidos. Meseros y admin ven todos; cocina ve solo los confirmados/en preparación."""
-    query = select(Order).options(selectinload(Order.items)).order_by(Order.created_at.desc())
+    query = (
+        select(Order)
+        .options(selectinload(Order.items).selectinload(OrderItem.product))
+        .order_by(Order.created_at.desc())
+    )
 
     if current_user["role"] == UserRole.kitchen:
         query = query.where(Order.status.in_([OrderStatus.confirmed, OrderStatus.preparing]))
@@ -114,7 +123,7 @@ async def list_orders(
     result = await db.execute(query)
     orders = result.scalars().all()
     for o in orders:
-        await _attach_table_qr(o, db)
+        await _attach_table_info(o, db)
     return orders
 
 
@@ -131,22 +140,27 @@ async def kitchen_panel(db: AsyncSession = Depends(get_db), current_user: dict =
     result = await db.execute(
         select(Order)
         .where(Order.status.in_([OrderStatus.confirmed, OrderStatus.preparing]))
-        .options(selectinload(Order.items))
+        .options(selectinload(Order.items).selectinload(OrderItem.product))
         .order_by(Order.created_at)
     )
-    return result.scalars().all()
+    orders = result.scalars().all()
+    for o in orders:
+        await _attach_table_info(o, db)
+    return orders
 
 
 @router.get("/{order_id}", response_model=OrderOut)
 async def get_order(order_id: int, db: AsyncSession = Depends(get_db)):
     """Detalle de un pedido. Acceso público para permitir seguimiento al cliente."""
     result = await db.execute(
-        select(Order).where(Order.id == order_id).options(selectinload(Order.items))
+        select(Order).where(Order.id == order_id).options(
+            selectinload(Order.items).selectinload(OrderItem.product)
+        )
     )
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
-    await _attach_table_qr(order, db)
+    await _attach_table_info(order, db)
     return order
 
 
@@ -164,7 +178,9 @@ async def update_order_status(
     - Admin: puede hacer cualquier cambio.
     """
     result = await db.execute(
-        select(Order).where(Order.id == order_id).options(selectinload(Order.items))
+        select(Order).where(Order.id == order_id).options(
+            selectinload(Order.items).selectinload(OrderItem.product)
+        )
     )
     order = result.scalar_one_or_none()
     if not order:
@@ -172,7 +188,6 @@ async def update_order_status(
 
     role = current_user["role"]
 
-    # Validación de transiciones permitidas por rol
     waiter_allowed = {OrderStatus.confirmed, OrderStatus.delivered, OrderStatus.cancelled}
     kitchen_allowed = {OrderStatus.preparing, OrderStatus.ready}
 
@@ -183,7 +198,6 @@ async def update_order_status(
 
     order.status = data.status
 
-    # Si se entrega, liberar la mesa
     if data.status == OrderStatus.delivered and order.table_id:
         table_result = await db.execute(select(Table).where(Table.id == order.table_id))
         table = table_result.scalar_one_or_none()
@@ -198,7 +212,7 @@ async def update_order_status(
     db.add(history)
     await db.commit()
     await db.refresh(order)
-    await _attach_table_qr(order, db)
+    await _attach_table_info(order, db)
     return order
 
 

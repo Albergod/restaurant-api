@@ -33,7 +33,7 @@ export default function OrderCard({ order, onUpdateStatus }) {
         <div className="mb-2 flex items-start justify-between">
           <div>
             <p className="text-base font-bold text-gray-900">Pedido #{order.id}</p>
-            <p className="text-xs text-gray-500">Mesa {order.table_qr ? `#${order.table_qr}` : "—"}</p>
+            <p className="text-xs text-gray-500">Mesa {order.table_number ? `#${order.table_number}` : "—"}</p>
           </div>
           <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[order.status] || "bg-gray-100 text-gray-600"}`}>
             <StatusIcon className="h-3 w-3" />{STATUS_LABELS[order.status] || order.status}
@@ -43,7 +43,8 @@ export default function OrderCard({ order, onUpdateStatus }) {
         <div className="mb-3 space-y-1">
           {(order.items || []).map((item, i) => (
             <p key={i} className="text-sm text-gray-600">
-              <span className="font-medium text-gray-900">{item.quantity}x</span> {item.product_name || item.name}
+              <span className="font-medium text-gray-900">{item.quantity}x</span> {item.product_name}
+              <span className="ml-2 text-gray-400">${Number(item.unit_price).toFixed(2)}</span>
             </p>
           ))}
         </div>

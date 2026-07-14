@@ -163,6 +163,7 @@ class OrderCreate(BaseModel):
 class OrderItemOut(BaseModel):
     id: int
     product_id: int
+    product_name: str
     quantity: int
     unit_price: float
     observations: Optional[str]
@@ -175,6 +176,7 @@ class OrderOut(BaseModel):
     id: int
     table_id: Optional[int]
     table_qr: Optional[str] = None
+    table_number: Optional[int] = None
     waiter_id: Optional[int]
     customer_name: Optional[str]
     order_type: OrderType
@@ -230,6 +232,7 @@ class ChatSessionOut(BaseModel):
 class KitchenOrderOut(BaseModel):
     id: int
     table_id: Optional[int]
+    table_number: Optional[int] = None
     order_type: OrderType
     status: OrderStatus
     created_at: datetime

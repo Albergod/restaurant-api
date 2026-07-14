@@ -29,7 +29,7 @@ export default function KitchenOrderCard({ order, onUpdateStatus }) {
           <div>
             <p className="text-base font-bold text-gray-900">Pedido #{order.id}</p>
             <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
-              <span>Mesa {order.table_qr ? `#${order.table_qr}` : "—"}</span>
+              <span>Mesa {order.table_number ? `#${order.table_number}` : "—"}</span>
               <span>·</span>
               <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{getTimeAgo(order.created_at)}</span>
             </div>
@@ -43,7 +43,7 @@ export default function KitchenOrderCard({ order, onUpdateStatus }) {
           {(order.items || []).map((item, i) => (
             <div key={i} className="text-sm">
               <span className="font-medium text-gray-900">{item.quantity}x</span>{" "}
-              <span className="text-gray-600">{item.product_name || item.name}</span>
+              <span className="text-gray-600">{item.product_name}</span>
               {item.notes && <p className="ml-4 text-xs italic text-gray-400">Nota: {item.notes}</p>}
             </div>
           ))}
