@@ -1,0 +1,12 @@
+{
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "cd frontend && npm install && npm run build",
+    "startCommand": "cd frontend && npm start"
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "sleepApplication": false,
+    "startCommand": "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+  }
+}
