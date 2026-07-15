@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -225,6 +226,19 @@ async def update_order_status(
         table = table_result.scalar_one_or_none()
         if table:
             table.is_occupied = False
+
+        # Cerrar sesion de chat activa de la mesa
+        chat_result = await db.execute(
+            select(ChatSession)
+            .where(
+                ChatSession.table_id == order.table_id,
+                ChatSession.is_open == True,
+            )
+        )
+        chat_session = chat_result.scalar_one_or_none()
+        if chat_session:
+            chat_session.is_open = False
+            chat_session.closed_at = datetime.utcnow()
 
     history = OrderStatusHistory(
         order_id=order.id,
