@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { Clock, Package, ChefHat, CheckCircle2, ClipboardList, XCircle, CheckCircle2 as CheckCircle, MessageSquare } from "lucide-react"
+import { Clock, Package, ChefHat, CheckCircle2, ClipboardList, XCircle, CheckCircle2 as CheckCircle, MessageSquare, Trash2 } from "lucide-react"
 
 const STATUS_LABELS = {
   pending: "Pendiente", confirmed: "Confirmado", preparing: "En preparación",
@@ -24,7 +24,7 @@ const BORDER_COLORS = {
   preparing: "border-l-orange-400", ready: "border-l-green-400",
 }
 
-export default function OrderCard({ order, onUpdateStatus }) {
+export default function OrderCard({ order, onUpdateStatus, onDelete }) {
   const router = useRouter()
   const StatusIcon = STATUS_ICONS[order.status] || Clock
   const borderColor = BORDER_COLORS[order.status] || "border-l-gray-200"
@@ -82,6 +82,12 @@ export default function OrderCard({ order, onUpdateStatus }) {
             <button onClick={() => onUpdateStatus(order.id, "delivered")}
               className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-green-500 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-green-600">
               <CheckCircle className="h-4 w-4" />Entregar
+            </button>
+          )}
+          {(order.status === "delivered" || order.status === "cancelled") && onDelete && (
+            <button onClick={() => onDelete(order.id)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-500 transition-colors hover:bg-red-50">
+              <Trash2 className="h-4 w-4" />Eliminar
             </button>
           )}
         </div>

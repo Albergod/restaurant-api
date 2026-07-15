@@ -3,11 +3,15 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select, func
+from sqlalchemy import delete, select, func
 
 from app.core.database import engine, Base, AsyncSessionLocal
 from app.core.security import hash_password
-from app.models.models import User, UserRole, Category, Product, Table
+from app.models.models import (
+    ChatMessage, ChatSession, LoyaltyPoints,
+    Order, OrderItem, OrderStatusHistory,
+    User, UserRole, Category, Product, Table,
+)
 from app.routers import auth, menu, orders, tables, chat, loyalty, users, upload
 
 app = FastAPI(
@@ -46,6 +50,16 @@ async def _seed_default_data():
         count = await db.execute(select(func.count()).select_from(User))
         if count.scalar() > 0:
             return
+
+        # Limpiar datos previos de pedidos y chat
+        for table, model_cls in [
+            ("chat_messages", ChatMessage), ("chat_sessions", ChatSession),
+            ("order_status_history", OrderStatusHistory),
+            ("order_items", OrderItem), ("orders", Order),
+            ("loyalty_points", LoyaltyPoints),
+        ]:
+            await db.execute(delete(model_cls))
+        await db.flush()
 
         admin = User(
             name="Admin",

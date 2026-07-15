@@ -253,19 +253,22 @@ async def update_order_status(
 
 
 @router.delete("/{order_id}", status_code=204)
-async def cancel_order(
+async def delete_order(
     order_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Cancelar pedido. Solo admin o mesero si aún está pendiente."""
+    """Eliminar pedido. Meseros y admin pueden borrar entregados o cancelados."""
+    if current_user["role"] not in [UserRole.waiter, UserRole.admin]:
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+
     result = await db.execute(select(Order).where(Order.id == order_id))
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
 
-    if order.status not in [OrderStatus.pending, OrderStatus.confirmed]:
-        raise HTTPException(status_code=400, detail="No se puede cancelar un pedido en preparación o entregado")
+    if order.status not in [OrderStatus.delivered, OrderStatus.cancelled]:
+        raise HTTPException(status_code=400, detail="Solo se pueden eliminar pedidos entregados o cancelados")
 
-    order.status = OrderStatus.cancelled
+    await db.delete(order)
     await db.commit()

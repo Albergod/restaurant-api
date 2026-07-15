@@ -66,6 +66,17 @@ export default function WaiterPage() {
     }
   }
 
+  async function deleteOrder(orderId) {
+    try {
+      await apiFetch(`/api/orders/${orderId}`, { method: "DELETE" })
+      const data = await apiFetch("/api/orders/")
+      setOrders(Array.isArray(data) ? data : data?.orders || [])
+    } catch (e) {
+      if (e.message?.startsWith("401")) { logout(); router.replace("/login"); return }
+      setError("Error al eliminar el pedido")
+    }
+  }
+
   function handleLogout() { logout(); router.replace("/login") }
 
   const pending = orders.filter((o) => o.status === "pending")
@@ -130,7 +141,7 @@ export default function WaiterPage() {
       ) : (
         <div className="space-y-3">
           {filteredOrders.map((order) => (
-            <OrderCard key={order.id} order={order} onUpdateStatus={updateStatus} />
+            <OrderCard key={order.id} order={order} onUpdateStatus={updateStatus} onDelete={deleteOrder} />
           ))}
         </div>
       )}
