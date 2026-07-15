@@ -262,13 +262,23 @@ async def delete_order(
     if current_user["role"] not in [UserRole.waiter, UserRole.admin]:
         raise HTTPException(status_code=403, detail="Acceso denegado")
 
-    result = await db.execute(select(Order).where(Order.id == order_id))
+    result = await db.execute(
+        select(Order)
+        .where(Order.id == order_id)
+        .options(selectinload(Order.items), selectinload(Order.status_history))
+    )
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
 
     if order.status not in [OrderStatus.delivered, OrderStatus.cancelled]:
         raise HTTPException(status_code=400, detail="Solo se pueden eliminar pedidos entregados o cancelados")
+
+    # Eliminar hijos explicitamente antes del padre para evitar SET NULL
+    for item in order.items:
+        await db.delete(item)
+    for h in order.status_history:
+        await db.delete(h)
 
     await db.delete(order)
     await db.commit()
