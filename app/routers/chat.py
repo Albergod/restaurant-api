@@ -44,8 +44,14 @@ async def open_chat_session(table_qr: str, db: AsyncSession = Depends(get_db)):
     session = ChatSession(table_id=table.id)
     db.add(session)
     await db.commit()
-    await db.refresh(session)
-    return session
+
+    # Recargar con relaciones para evitar MissingGreenlet en serializacion
+    result = await db.execute(
+        select(ChatSession)
+        .where(ChatSession.id == session.id)
+        .options(selectinload(ChatSession.messages))
+    )
+    return result.scalar_one()
 
 
 @router.get("/sessions/active", response_model=List[dict])
