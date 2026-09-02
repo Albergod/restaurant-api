@@ -21,16 +21,14 @@ pkgs.mkShell {
   shellHook = ''
   export LD_LIBRARY_PATH=${pkgs.stdenv.cc.cc.lib}/lib:$NIX_LD_LIBRARY_PATH:$LD_LIBRARY_PATH
 
-  # Levantar PostgreSQL si no está corriendo
-  if ! docker ps | grep -q restaurant-db; then
-    echo "→ Iniciando PostgreSQL..."
-    docker run -d \
-      --name restaurant-db \
-      -e POSTGRES_USER=kaydo \
-      -e POSTGRES_PASSWORD=1234 \
-      -e POSTGRES_DB=restaurant_db \
-      -p 5432:5432 \
-      postgres:16 2>/dev/null || docker start restaurant-db
+  # Levantar el PostgreSQL definido por el proyecto si el puerto está libre.
+  if ! (echo >/dev/tcp/127.0.0.1/5432) 2>/dev/null; then
+    if docker info >/dev/null 2>&1; then
+      echo "→ Iniciando PostgreSQL..."
+      docker compose up -d db
+    else
+      echo "⚠ Docker no está disponible; inicia PostgreSQL manualmente."
+    fi
   fi
 
   # Virtualenv y dependencias

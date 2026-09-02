@@ -31,8 +31,7 @@ export default function OrderPage() {
         failCount = 0
         if (data.status === "delivered" || data.status === "cancelled") clearInterval(interval)
         if (data.table_qr) {
-          fetch(`/api/menu/table-by-qr/${data.table_qr}`)
-            .then(r => r.ok && r.json())
+          apiFetch(`/api/menu/table-by-qr/${data.table_qr}`)
             .then(t => setTableNumber(t.number))
             .catch(() => {})
         }

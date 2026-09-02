@@ -49,8 +49,7 @@ export default function MenuPage() {
 
   useEffect(() => {
     if (!tableQr) return
-    fetch(`/api/menu/table-by-qr/${tableQr}`)
-      .then(r => r.ok && r.json())
+    apiFetch(`/api/menu/table-by-qr/${tableQr}`)
       .then(data => setTableInfo(data))
       .catch(() => {})
   }, [tableQr])

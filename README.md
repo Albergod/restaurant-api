@@ -80,6 +80,32 @@ Documentación interactiva: `http://localhost:8000/docs`
 
 ---
 
+## Arranque local (Linux / NixOS)
+
+Desde la raíz del repositorio, abre tres terminales:
+
+```bash
+# Terminal 1: PostgreSQL
+docker compose up -d
+
+# Terminal 2: API (entra primero al entorno Nix del proyecto)
+nix-shell
+uvicorn app.main:app --reload
+
+# Terminal 3: frontend
+cd frontend
+npm install
+npm run dev
+```
+
+Abre `http://localhost:3000`. La API queda en `http://localhost:8000` y su
+documentación en `http://localhost:8000/docs`.
+
+Si Docker responde `permission denied`, ejecuta temporalmente el comando con
+`sudo` o agrega tu usuario al grupo `docker` y vuelve a iniciar sesión.
+
+---
+
 ## Comandos útiles de Docker (la base de datos)
 
 ```powershell
@@ -93,6 +119,45 @@ docker compose logs -f db # Ver qué hace la base de datos
 
 Si cambiaste el usuario/contraseña en `docker-compose.yml`, recuerda
 ajustar también `DATABASE_URL` en tu `.env`.
+
+---
+
+## Despliegue en Railway
+
+Este repositorio se despliega como tres servicios dentro del mismo proyecto:
+
+1. **Postgres**, creado con el servicio PostgreSQL de Railway.
+2. **backend**, con directorio raíz `/` y archivo de configuración
+   `/railway.json`.
+3. **frontend**, con directorio raíz `/frontend` y archivo de configuración
+   `/frontend/railway.json`.
+
+Variables del backend:
+
+```text
+DATABASE_URL=postgresql+asyncpg://...  # derivada de Postgres.DATABASE_URL
+SECRET_KEY=<valor aleatorio largo>
+BACKEND_CORS_ORIGINS=https://<dominio-del-frontend>
+SEED_DEFAULT_USERS=true
+ALLOW_PUBLIC_STAFF_REGISTRATION=false
+DEFAULT_ADMIN_PASSWORD=<valor aleatorio>
+DEFAULT_WAITER_PASSWORD=<valor aleatorio>
+DEFAULT_KITCHEN_PASSWORD=<valor aleatorio>
+```
+
+La URL que entrega Railway para PostgreSQL comienza con `postgresql://`; para
+SQLAlchemy async debe cambiarse solamente ese prefijo por
+`postgresql+asyncpg://`.
+
+Variables del frontend (se aplican durante el build):
+
+```text
+NEXT_PUBLIC_API_URL=https://<dominio-del-backend>
+NEXT_PUBLIC_WS_URL=wss://<dominio-del-backend>
+```
+
+Para conservar imágenes entre despliegues, conecta un volumen al backend con
+punto de montaje `/app/uploads`.
 
 ---
 
@@ -207,4 +272,3 @@ Estas son las librerías de `requirements.txt` y su rol en el proyecto:
 | **python-multipart** | Necesario para que FastAPI pueda recibir formularios y subidas de archivos (por ejemplo, el formulario de login). |
 | **websockets** | Soporte de bajo nivel para el **chat en tiempo real** (las rutas `WS /api/chat/ws/...`). |
 | **httpx** | Cliente HTTP. Se usa para hacer peticiones a servicios externos y en las pruebas de la API. |
-

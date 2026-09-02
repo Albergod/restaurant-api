@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import delete, select, func
 
 from app.core.database import engine, Base, AsyncSessionLocal
+from app.core.config import settings
 from app.core.security import hash_password
 from app.models.models import (
     ChatMessage, ChatSession, LoyaltyPoints,
@@ -20,10 +21,9 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS — ajustar origins en producción
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,7 +64,7 @@ async def _seed_default_data():
         admin = User(
             name="Admin",
             email="admin@restaurant.com",
-            hashed_password=hash_password("admin123"),
+            hashed_password=hash_password(settings.DEFAULT_ADMIN_PASSWORD),
             role=UserRole.admin,
         )
         db.add(admin)
@@ -72,7 +72,7 @@ async def _seed_default_data():
         waiter = User(
             name="Mesero",
             email="mesero@restaurant.com",
-            hashed_password=hash_password("mesero123"),
+            hashed_password=hash_password(settings.DEFAULT_WAITER_PASSWORD),
             role=UserRole.waiter,
         )
         db.add(waiter)
@@ -80,7 +80,7 @@ async def _seed_default_data():
         kitchen = User(
             name="Cocina",
             email="cocina@restaurant.com",
-            hashed_password=hash_password("cocina123"),
+            hashed_password=hash_password(settings.DEFAULT_KITCHEN_PASSWORD),
             role=UserRole.kitchen,
         )
         db.add(kitchen)
@@ -151,7 +151,8 @@ async def startup():
     """Crear tablas en DB al iniciar y sembrar datos por defecto."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    await _seed_default_data()
+    if settings.SEED_DEFAULT_USERS:
+        await _seed_default_data()
 
 
 @app.get("/", tags=["Root"])
