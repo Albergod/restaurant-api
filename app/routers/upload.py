@@ -1,10 +1,11 @@
-import os
 import uuid
 from pathlib import Path
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 
+from app.core.config import settings
 from app.core.security import get_current_user
 from app.models.models import UserRole
 
@@ -21,6 +22,31 @@ ALLOWED_TYPES = {
 }
 
 
+async def _upload_to_cloudinary(file: UploadFile, content: bytes) -> str:
+    credentials = (
+        settings.CLOUDINARY_CLOUD_NAME,
+        settings.CLOUDINARY_API_KEY,
+        settings.CLOUDINARY_API_SECRET,
+    )
+    if not all(credentials):
+        raise HTTPException(status_code=500, detail="Cloudinary no está configurado")
+
+    url = f"https://api.cloudinary.com/v1_1/{settings.CLOUDINARY_CLOUD_NAME}/image/upload"
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                url,
+                auth=(settings.CLOUDINARY_API_KEY, settings.CLOUDINARY_API_SECRET),
+                data={"folder": "restaurant-products"},
+                files={"file": (file.filename or "product-image", content, file.content_type)},
+            )
+            response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail="No se pudo guardar la imagen") from exc
+
+    return response.json()["secure_url"]
+
+
 @router.post("/")
 async def upload_image(
     file: UploadFile = File(...),
@@ -34,10 +60,14 @@ async def upload_image(
     if not ext:
         raise HTTPException(status_code=400, detail="Formato no permitido. Usa JPEG, PNG, WebP o GIF.")
 
+    content = await file.read()
+    if settings.MEDIA_STORAGE == "cloudinary":
+        return {"url": await _upload_to_cloudinary(file, content)}
+    if settings.MEDIA_STORAGE != "local":
+        raise HTTPException(status_code=500, detail="Almacenamiento de imágenes no válido")
+
     filename = f"{uuid.uuid4().hex}{ext}"
     filepath = UPLOAD_DIR / filename
-
-    content = await file.read()
     filepath.write_bytes(content)
 
     return {"url": f"/uploads/{filename}"}

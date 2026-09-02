@@ -1,6 +1,6 @@
 "use client"
 
-import { getToken } from "@/lib/api"
+import { getImageUrl, getToken } from "@/lib/api"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -55,7 +55,7 @@ export default function ProductForm({ form, onChange, categories, productDialog,
               )}
             </div>
             {form.image_url && (
-              <img src={`${API_URL}${form.image_url}`} alt="Vista previa" className="mt-2 h-20 w-20 rounded-lg border border-gray-200 object-cover" />
+              <img src={getImageUrl(form.image_url)} alt="Vista previa" className="mt-2 h-20 w-20 rounded-lg border border-gray-200 object-cover" />
             )}
           </div>
           <div className="grid grid-cols-2 gap-4">

@@ -1,15 +1,14 @@
 "use client"
 
 import { Trash2, Pencil, Eye, EyeOff, Star, Percent, Image } from "lucide-react"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+import { getImageUrl } from "@/lib/api"
 
 export default function ProductCard({ product, onToggle, onEdit, onDelete }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm transition-all hover:shadow-md overflow-hidden flex flex-col">
       <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden">
         {product.image_url ? (
-          <img src={`${API_URL}${product.image_url}`} alt={product.name} className="h-full w-full object-cover" />
+          <img src={getImageUrl(product.image_url)} alt={product.name} className="h-full w-full object-cover" />
         ) : (
           <Image className="h-10 w-10 text-gray-300" />
         )}

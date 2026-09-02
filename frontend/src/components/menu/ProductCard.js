@@ -1,8 +1,7 @@
 "use client"
 
 import { Plus, Image } from "lucide-react"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+import { getImageUrl } from "@/lib/api"
 
 function formatPrice(price) {
   return `$${Number(price).toFixed(2)}`
@@ -19,7 +18,7 @@ export default function ProductCard({ product, onAdd, index }) {
     >
       <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden">
         {product.image_url ? (
-          <img src={`${API_URL}${product.image_url}`} alt={product.name} className="h-full w-full object-cover" />
+          <img src={getImageUrl(product.image_url)} alt={product.name} className="h-full w-full object-cover" />
         ) : (
           <Image className="h-10 w-10 text-gray-300" />
         )}

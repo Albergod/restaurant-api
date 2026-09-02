@@ -1,6 +1,11 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || API_URL.replace(/^http/, "ws")
 
+export function getImageUrl(path) {
+  if (!path) return ""
+  return /^https?:\/\//.test(path) ? path : `${API_URL}${path}`
+}
+
 export function getToken() {
   if (typeof window === "undefined") return null
   return localStorage.getItem("token")
@@ -54,5 +59,4 @@ export function connectWebSocket(sessionId, onMessage) {
   ws.onmessage = (e) => onMessage(JSON.parse(e.data))
   return ws
 }
-
 

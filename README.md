@@ -122,20 +122,19 @@ ajustar también `DATABASE_URL` en tu `.env`.
 
 ---
 
-## Despliegue en Railway
+## Despliegue gratuito para demostración
 
-Este repositorio se despliega como tres servicios dentro del mismo proyecto:
+La aplicación se divide entre servicios con planes gratuitos:
 
-1. **Postgres**, creado con el servicio PostgreSQL de Railway.
-2. **backend**, con directorio raíz `/` y archivo de configuración
-   `/railway.json`.
-3. **frontend**, con directorio raíz `/frontend` y archivo de configuración
-   `/frontend/railway.json`.
+1. **Neon** aloja PostgreSQL.
+2. **Render** ejecuta FastAPI usando `/render.yaml`.
+3. **Vercel** ejecuta Next.js desde el directorio `/frontend`.
+4. **Cloudinary** conserva las imágenes subidas por el administrador.
 
 Variables del backend:
 
 ```text
-DATABASE_URL=postgresql+asyncpg://...  # derivada de Postgres.DATABASE_URL
+DATABASE_URL=postgresql+asyncpg://...  # cadena de conexión de Neon
 SECRET_KEY=<valor aleatorio largo>
 BACKEND_CORS_ORIGINS=https://<dominio-del-frontend>
 SEED_DEFAULT_USERS=true
@@ -143,11 +142,15 @@ ALLOW_PUBLIC_STAFF_REGISTRATION=false
 DEFAULT_ADMIN_PASSWORD=<valor aleatorio>
 DEFAULT_WAITER_PASSWORD=<valor aleatorio>
 DEFAULT_KITCHEN_PASSWORD=<valor aleatorio>
+MEDIA_STORAGE=cloudinary
+CLOUDINARY_CLOUD_NAME=<cloud name>
+CLOUDINARY_API_KEY=<API key>
+CLOUDINARY_API_SECRET=<API secret>
 ```
 
-La URL que entrega Railway para PostgreSQL comienza con `postgresql://`; para
-SQLAlchemy async debe cambiarse solamente ese prefijo por
-`postgresql+asyncpg://`.
+En desarrollo `MEDIA_STORAGE=local` conserva el comportamiento original y
+guarda los archivos en `/uploads`. En Render debe ser `cloudinary`, porque el
+disco del plan gratuito se borra al suspender o reiniciar el servicio.
 
 Variables del frontend (se aplican durante el build):
 
@@ -155,9 +158,6 @@ Variables del frontend (se aplican durante el build):
 NEXT_PUBLIC_API_URL=https://<dominio-del-backend>
 NEXT_PUBLIC_WS_URL=wss://<dominio-del-backend>
 ```
-
-Para conservar imágenes entre despliegues, conecta un volumen al backend con
-punto de montaje `/app/uploads`.
 
 ---
 

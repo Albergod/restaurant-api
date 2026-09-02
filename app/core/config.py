@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     DEFAULT_ADMIN_PASSWORD: str = "admin123"
     DEFAULT_WAITER_PASSWORD: str = "mesero123"
     DEFAULT_KITCHEN_PASSWORD: str = "cocina123"
+    MEDIA_STORAGE: str = "local"
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
 
     @property
     def cors_origins(self) -> list[str]:
