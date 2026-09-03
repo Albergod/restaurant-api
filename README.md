@@ -137,6 +137,7 @@ Variables del backend:
 DATABASE_URL=postgresql://...          # copiar directamente desde Neon
 SECRET_KEY=<valor aleatorio largo>
 BACKEND_CORS_ORIGINS=https://<dominio-del-frontend>
+FRONTEND_URL=https://<dominio-del-frontend>
 SEED_DEFAULT_USERS=true
 ALLOW_PUBLIC_STAFF_REGISTRATION=false
 DEFAULT_ADMIN_PASSWORD=<valor aleatorio>

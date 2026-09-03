@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.qr import generate_qr_image
 from app.core.security import get_current_user
@@ -13,11 +14,9 @@ from app.schemas.schemas import TableCreate, TableOut
 
 router = APIRouter(prefix="/api/tables", tags=["Mesas"])
 
-FRONTEND_URL = "http://localhost:3000"
-
 
 def _attach_qr(table):
-    table.qr_image = generate_qr_image(f"{FRONTEND_URL}/menu/{table.qr_code}")
+    table.qr_image = generate_qr_image(f"{settings.FRONTEND_URL.rstrip('/')}/menu/{table.qr_code}")
     return table
 
 
