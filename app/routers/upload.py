@@ -1,3 +1,4 @@
+import logging
 import uuid
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from app.core.security import get_current_user
 from app.models.models import UserRole
 
 router = APIRouter(prefix="/api/uploads", tags=["Subidas"])
+logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -41,8 +43,13 @@ async def _upload_to_cloudinary(file: UploadFile, content: bytes) -> str:
                 files={"file": (file.filename or "product-image", content, file.content_type)},
             )
             response.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail="No se pudo guardar la imagen") from exc
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        logger.warning("Cloudinary rechazó la subida (%s): %s", status, exc.response.text[:500])
+        raise HTTPException(status_code=502, detail=f"Cloudinary rechazó la imagen ({status})") from exc
+    except httpx.RequestError as exc:
+        logger.warning("No se pudo conectar con Cloudinary: %s", exc)
+        raise HTTPException(status_code=502, detail="No se pudo conectar con Cloudinary") from exc
 
     return response.json()["secure_url"]
 
