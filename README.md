@@ -134,7 +134,7 @@ La aplicación se divide entre servicios con planes gratuitos:
 Variables del backend:
 
 ```text
-DATABASE_URL=postgresql+asyncpg://...  # cadena de conexión de Neon
+DATABASE_URL=postgresql://...          # copiar directamente desde Neon
 SECRET_KEY=<valor aleatorio largo>
 BACKEND_CORS_ORIGINS=https://<dominio-del-frontend>
 SEED_DEFAULT_USERS=true
