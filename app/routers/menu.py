@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.models import Category, OrderItem, Product, Table, UserRole
+from app.routers.upload import delete_image
 from app.schemas.schemas import (
     CategoryCreate, CategoryOut, CategoryWithProducts,
     ProductCreate, ProductUpdate, ProductOut,
@@ -138,11 +139,18 @@ async def update_product(
     if not product:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    for field, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    old_image_url = (
+        product.image_url
+        if "image_url" in changes and changes["image_url"] != product.image_url
+        else None
+    )
+    for field, value in changes.items():
         setattr(product, field, value)
 
     await db.commit()
     await db.refresh(product)
+    await delete_image(old_image_url)
     return product
 
 
@@ -164,5 +172,7 @@ async def delete_product(
     # Eliminar referencias en order_items antes de borrar el producto
     await db.execute(delete(OrderItem).where(OrderItem.product_id == product_id))
 
+    image_url = product.image_url
     await db.delete(product)
     await db.commit()
+    await delete_image(image_url)

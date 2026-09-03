@@ -1,6 +1,8 @@
 import logging
+import re
 import uuid
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -24,6 +26,53 @@ ALLOWED_TYPES = {
 }
 
 
+def _cloudinary_public_id(image_url: str) -> str | None:
+    parsed = urlparse(image_url)
+    if parsed.hostname != "res.cloudinary.com":
+        return None
+
+    parts = parsed.path.strip("/").split("/")
+    if len(parts) < 6 or parts[0] != settings.CLOUDINARY_CLOUD_NAME:
+        return None
+    try:
+        upload_index = parts.index("upload")
+    except ValueError:
+        return None
+
+    asset_parts = parts[upload_index + 1:]
+    if asset_parts and re.fullmatch(r"v\d+", asset_parts[0]):
+        asset_parts = asset_parts[1:]
+    if not asset_parts:
+        return None
+
+    public_id = unquote("/".join(asset_parts))
+    return public_id.rsplit(".", 1)[0]
+
+
+async def delete_image(image_url: str | None) -> None:
+    if not image_url:
+        return
+
+    public_id = _cloudinary_public_id(image_url)
+    if public_id:
+        url = f"https://api.cloudinary.com/v1_1/{settings.CLOUDINARY_CLOUD_NAME}/image/destroy"
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.post(
+                    url,
+                    auth=(settings.CLOUDINARY_API_KEY, settings.CLOUDINARY_API_SECRET),
+                    data={"public_id": public_id, "invalidate": "true"},
+                )
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            logger.warning("No se pudo eliminar %s de Cloudinary: %s", public_id, exc)
+        return
+
+    if image_url.startswith("/uploads/"):
+        path = UPLOAD_DIR / Path(image_url).name
+        path.unlink(missing_ok=True)
+
+
 async def _upload_to_cloudinary(file: UploadFile, content: bytes) -> str:
     credentials = (
         settings.CLOUDINARY_CLOUD_NAME,
@@ -34,12 +83,13 @@ async def _upload_to_cloudinary(file: UploadFile, content: bytes) -> str:
         raise HTTPException(status_code=500, detail="Cloudinary no está configurado")
 
     url = f"https://api.cloudinary.com/v1_1/{settings.CLOUDINARY_CLOUD_NAME}/image/upload"
+    public_id = f"restaurant-products/{uuid.uuid4().hex}"
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
                 url,
                 auth=(settings.CLOUDINARY_API_KEY, settings.CLOUDINARY_API_SECRET),
-                data={"folder": "restaurant-products"},
+                data={"public_id": public_id},
                 files={"file": (file.filename or "product-image", content, file.content_type)},
             )
             response.raise_for_status()
