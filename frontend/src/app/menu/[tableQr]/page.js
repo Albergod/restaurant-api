@@ -30,9 +30,9 @@ export default function MenuPage() {
     async function load() {
       try {
         const [menuData, featuredData, promoData] = await Promise.all([
-          apiFetch("/api/menu/"),
-          apiFetch("/api/menu/featured"),
-          apiFetch("/api/menu/promotions"),
+          apiFetch(`/api/menu/?table_qr=${encodeURIComponent(tableQr)}`),
+          apiFetch(`/api/menu/featured?table_qr=${encodeURIComponent(tableQr)}`),
+          apiFetch(`/api/menu/promotions?table_qr=${encodeURIComponent(tableQr)}`),
         ])
         setMenu(menuData)
         setFeatured(featuredData)
