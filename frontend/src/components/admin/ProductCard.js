@@ -34,9 +34,9 @@ export default function ProductCard({ product, onToggle, onEdit, onDelete }) {
               title={product.is_featured ? "Destacado" : "Destacar"}>
               <Star className={`h-3.5 w-3.5 ${product.is_featured ? "fill-orange-500" : ""}`} />
             </button>
-            <button onClick={() => onToggle(product.id, "is_promoted")}
+            <button onClick={() => onEdit(product)}
               className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs transition-colors ${product.is_promoted ? "bg-red-100 text-red-600 hover:bg-red-200" : "bg-gray-100 text-gray-400 hover:bg-gray-200"}`}
-              title={product.is_promoted ? "En promo" : "En promoción"}>
+              title={product.is_promoted ? "Editar promoción" : "Agregar promoción"}>
               <Percent className="h-3.5 w-3.5" />
             </button>
           </div>

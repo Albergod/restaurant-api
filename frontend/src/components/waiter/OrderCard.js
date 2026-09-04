@@ -58,10 +58,15 @@ export default function OrderCard({ order, onUpdateStatus, onDelete }) {
 
         <div className="mb-3 space-y-1">
           {(order.items || []).map((item, i) => (
-            <p key={i} className="text-sm text-gray-600">
-              <span className="font-medium text-gray-900">{item.quantity}x</span> {item.product_name}
-              <span className="ml-2 text-gray-400">${Number(item.unit_price).toFixed(2)}</span>
-            </p>
+            <div key={i}>
+              <p className="text-sm text-gray-600">
+                <span className="font-medium text-gray-900">{item.quantity}x</span> {item.product_name}
+                <span className="ml-2 text-gray-400">${Number(item.unit_price).toFixed(2)}</span>
+              </p>
+              {item.observations && (
+                <p className="mt-0.5 text-xs italic text-amber-700">Nota: {item.observations}</p>
+              )}
+            </div>
           ))}
         </div>
 

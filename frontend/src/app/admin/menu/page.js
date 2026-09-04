@@ -28,7 +28,7 @@ export default function AdminMenuPage() {
 
   const [form, setForm] = useState({
     name: "", description: "", price: "", image_url: "", category_id: "",
-    is_available: true, is_featured: false, is_promoted: false, promo_price: "",
+    is_available: true, is_featured: false, is_promoted: false, discount_percentage: "",
   })
 
   const [catForm, setCatForm] = useState({ name: "" })
@@ -59,28 +59,40 @@ export default function AdminMenuPage() {
 
   function openNewProduct() {
     setEditingProduct(null)
-    setForm({ name: "", description: "", price: "", image_url: "", category_id: categories[0]?.id || "", is_available: true, is_featured: false, is_promoted: false, promo_price: "" })
+    setForm({ name: "", description: "", price: "", image_url: "", category_id: categories[0]?.id || "", is_available: true, is_featured: false, is_promoted: false, discount_percentage: "" })
     setProductDialog(true)
   }
 
   function openEditProduct(product) {
+    const discountPercentage = product.promo_price && product.price
+      ? Number(((1 - product.promo_price / product.price) * 100).toFixed(2))
+      : ""
     setEditingProduct(product)
     setForm({
       name: product.name, description: product.description || "", price: String(product.price),
       image_url: product.image_url || "", category_id: product.category_id || "",
       is_available: product.is_available, is_featured: product.is_featured, is_promoted: product.is_promoted,
-      promo_price: product.promo_price ? String(product.promo_price) : "",
+      discount_percentage: String(discountPercentage),
     })
     setProductDialog(true)
   }
 
   async function saveProduct() {
     try {
+      const price = Number(form.price)
+      const discountPercentage = Number(form.discount_percentage)
+      if (form.is_promoted && (!discountPercentage || discountPercentage <= 0 || discountPercentage >= 100)) {
+        setError("El porcentaje de descuento debe ser mayor que 0 y menor que 100")
+        return
+      }
+      const promoPrice = form.is_promoted
+        ? Math.round(price * (1 - discountPercentage / 100) * 100) / 100
+        : null
       const body = {
-        name: form.name, description: form.description || null, price: Number(form.price),
+        name: form.name, description: form.description || null, price,
         image_url: form.image_url || null, category_id: Number(form.category_id),
         is_available: form.is_available, is_featured: form.is_featured, is_promoted: form.is_promoted,
-        ...(form.is_promoted && form.promo_price ? { promo_price: Number(form.promo_price) } : {}),
+        promo_price: promoPrice,
       }
       if (editingProduct) {
         await apiFetch(`/api/menu/products/${editingProduct.id}`, { method: "PATCH", body: JSON.stringify(body) })
