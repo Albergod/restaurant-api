@@ -34,6 +34,7 @@ export function useRedirectIfAuthenticated() {
         admin: "/admin",
         waiter: "/waiter",
         kitchen: "/kitchen",
+        superadmin: "/superadmin/restaurants",
       }
       router.replace(destinations[role] || "/login")
     }

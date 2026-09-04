@@ -109,8 +109,7 @@ async def upload_image(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ):
-    """Subir una imagen. Solo admin."""
-    if current_user["role"] != UserRole.admin:
+    if current_user["role"] not in [UserRole.admin.value, UserRole.superadmin.value]:
         raise HTTPException(status_code=403, detail="Solo administradores")
 
     ext = ALLOWED_TYPES.get(file.content_type)
@@ -132,7 +131,6 @@ async def upload_image(
 
 @router.get("/{filename}")
 async def get_upload(filename: str):
-    """Servir archivos subidos."""
     filepath = UPLOAD_DIR / filename
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="Archivo no encontrado")

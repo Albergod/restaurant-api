@@ -42,6 +42,7 @@ export default function LoginPage() {
         admin: "/admin",
         waiter: "/waiter",
         kitchen: "/kitchen",
+        superadmin: "/superadmin/restaurants",
       }
       router.replace(destinations[data.role] || "/login")
     } catch (err) {
