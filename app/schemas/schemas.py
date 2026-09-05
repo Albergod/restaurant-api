@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from app.models.models import OrderStatus, OrderType, UserRole, MessageSender
 
 class RestaurantCreate(BaseModel):
@@ -78,6 +78,13 @@ class ProductCreate(BaseModel):
     is_featured: bool = False
     is_promoted: bool = False
     promo_price: Optional[float] = None
+
+    @field_validator("category_id")
+    @classmethod
+    def _category_positive(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("category_id debe ser un entero positivo")
+        return v
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None

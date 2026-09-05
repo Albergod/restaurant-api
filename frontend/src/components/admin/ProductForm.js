@@ -112,7 +112,7 @@ export default function ProductForm({ form, onChange, categories, productDialog,
         <div className="mt-6 flex justify-end gap-2">
           <button onClick={onClose}
             className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50">Cancelar</button>
-          <button onClick={onSave} disabled={!form.name || !form.price || (form.is_promoted && promoPrice === null)}
+          <button onClick={onSave} disabled={!form.name || !form.price || !form.category_id || (form.is_promoted && promoPrice === null)}
             className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50">
             {editingProduct ? "Guardar cambios" : "Crear producto"}
           </button>
