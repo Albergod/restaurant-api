@@ -1,6 +1,7 @@
 "use client"
 
 import { Flame, UtensilsCrossed, Plus } from "lucide-react"
+import { getImageUrl } from "@/lib/api"
 
 function formatPrice(price) {
   return `$${Number(price).toFixed(2)}`
@@ -25,8 +26,19 @@ export default function FeaturedCarousel({ featured, onAdd }) {
             className="snap-start shrink-0 glass-card rounded-2xl p-4 flex flex-col justify-between w-[160px] animate-slide-up"
           >
             <div>
-              <div className="h-24 w-full bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl mb-3 flex items-center justify-center shadow-inner">
-                <UtensilsCrossed className="h-8 w-8 text-gray-300" />
+              <div className="relative h-24 w-full overflow-hidden rounded-xl mb-3 bg-gradient-to-br from-gray-100 to-gray-200 shadow-inner">
+                {p.image_url ? (
+                  <img
+                    src={getImageUrl(p.image_url)}
+                    alt={p.name}
+                    loading="lazy"
+                    className="h-full w-full object-cover transition-transform duration-300 hover:scale-110"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <UtensilsCrossed className="h-8 w-8 text-gray-300" />
+                  </div>
+                )}
               </div>
               <p className="font-bold text-gray-900 text-sm line-clamp-2 leading-tight">{p.name}</p>
               <p className="mt-1 text-[10px] uppercase font-bold text-amber-500">{p.category_name}</p>
