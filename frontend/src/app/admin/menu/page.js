@@ -24,6 +24,7 @@ export default function AdminMenuPage() {
   const [productDialog, setProductDialog] = useState(false)
   const [categoryDialog, setCategoryDialog] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteCategoryTarget, setDeleteCategoryTarget] = useState(null)
   const [editingProduct, setEditingProduct] = useState(null)
 
   const [form, setForm] = useState({
@@ -127,6 +128,17 @@ export default function AdminMenuPage() {
     } catch (e) {
       if (e.message?.startsWith("401")) { logout(); router.replace("/login"); return }
       setError("Error al eliminar el producto")
+    }
+  }
+
+  async function deleteCategory(categoryId) {
+    try {
+      await apiFetch(`/api/menu/categories/${categoryId}`, { method: "DELETE" })
+      setDeleteCategoryTarget(null)
+      loadData()
+    } catch (e) {
+      if (e.message?.startsWith("401")) { logout(); router.replace("/login"); return }
+      setError("Error al eliminar la categoría")
     }
   }
 
@@ -240,8 +252,15 @@ export default function AdminMenuPage() {
               <button onClick={() => setCategoryFilter(null)}
                 className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${categoryFilter === null ? "bg-gray-900 text-white shadow-sm" : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}>Todas</button>
               {categories.map((cat) => (
-                <button key={cat.id} onClick={() => setCategoryFilter(cat.id)}
-                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${categoryFilter === cat.id ? "bg-gray-900 text-white shadow-sm" : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}>{cat.name}</button>
+                <div key={cat.id} className="flex shrink-0 items-center gap-1">
+                  <button onClick={() => setCategoryFilter(cat.id)}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${categoryFilter === cat.id ? "bg-gray-900 text-white shadow-sm" : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}>{cat.name}</button>
+                  <button onClick={() => setDeleteCategoryTarget(cat)}
+                    title={`Eliminar categoría ${cat.name}`}
+                    className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-400 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500">
+                    <span className="text-base leading-none">×</span>
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -269,7 +288,11 @@ export default function AdminMenuPage() {
         categoryDialog={categoryDialog}
         onSave={saveCategory} onClose={() => setCategoryDialog(false)} />
 
-      <DeleteDialog product={deleteTarget} onConfirm={deleteProduct} onClose={() => setDeleteTarget(null)} />
+      <DeleteDialog item={deleteTarget} title="Eliminar producto" onConfirm={deleteProduct} onClose={() => setDeleteTarget(null)} />
+
+      <DeleteDialog item={deleteCategoryTarget} title="Eliminar categoría"
+        description="Los productos de esta categoría también dejaran de mostrarse. Esta accion no se puede deshacer."
+        onConfirm={deleteCategory} onClose={() => setDeleteCategoryTarget(null)} />
     </div>
   )
 }
