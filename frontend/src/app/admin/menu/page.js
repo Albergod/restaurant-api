@@ -252,15 +252,8 @@ export default function AdminMenuPage() {
               <button onClick={() => setCategoryFilter(null)}
                 className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${categoryFilter === null ? "bg-gray-900 text-white shadow-sm" : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}>Todas</button>
               {categories.map((cat) => (
-                <div key={cat.id} className="flex shrink-0 items-center gap-1">
-                  <button onClick={() => setCategoryFilter(cat.id)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${categoryFilter === cat.id ? "bg-gray-900 text-white shadow-sm" : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}>{cat.name}</button>
-                  <button onClick={() => setDeleteCategoryTarget(cat)}
-                    title={`Eliminar categoría ${cat.name}`}
-                    className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-400 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500">
-                    <span className="text-base leading-none">×</span>
-                  </button>
-                </div>
+                <button key={cat.id} onClick={() => setCategoryFilter(cat.id)}
+                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${categoryFilter === cat.id ? "bg-gray-900 text-white shadow-sm" : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}>{cat.name}</button>
               ))}
             </div>
           )}
@@ -284,9 +277,10 @@ export default function AdminMenuPage() {
         productDialog={productDialog} editingProduct={editingProduct}
         onSave={saveProduct} onClose={() => setProductDialog(false)} onError={setError} />
 
-      <CategoryForm catForm={catForm} onChange={setCatForm}
+      <CategoryForm catForm={catForm} onChange={setCatForm} categories={categories}
         categoryDialog={categoryDialog}
-        onSave={saveCategory} onClose={() => setCategoryDialog(false)} />
+        onSave={saveCategory} onClose={() => setCategoryDialog(false)}
+        onDelete={setDeleteCategoryTarget} />
 
       <DeleteDialog item={deleteTarget} title="Eliminar producto" onConfirm={deleteProduct} onClose={() => setDeleteTarget(null)} />
 
