@@ -4,11 +4,12 @@ import { Trash2, Pencil, Eye, EyeOff, Star, Percent, Image } from "lucide-react"
 import { getImageUrl } from "@/lib/api"
 
 export default function ProductCard({ product, onToggle, onEdit, onDelete }) {
+  const isAvailable = product.is_available !== false
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm transition-all hover:shadow-md overflow-hidden flex flex-col">
+    <div className={`rounded-xl border bg-white shadow-sm transition-all hover:shadow-md overflow-hidden flex flex-col ${isAvailable ? "border-gray-200" : "border-dashed border-gray-300 opacity-60"}`}>
       <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden">
         {product.image_url ? (
-          <img src={getImageUrl(product.image_url)} alt={product.name} className="h-full w-full object-cover" />
+          <img src={getImageUrl(product.image_url)} alt={product.name} className={`h-full w-full object-cover ${isAvailable ? "" : "grayscale"}`} />
         ) : (
           <Image className="h-10 w-10 text-gray-300" />
         )}
@@ -16,8 +17,8 @@ export default function ProductCard({ product, onToggle, onEdit, onDelete }) {
       <div className="p-3 flex flex-col flex-1 gap-1.5">
         <div className="flex items-start justify-between gap-1">
           <p className="text-sm font-bold text-gray-900 leading-tight truncate flex-1">{product.name}</p>
-          {product.is_available === false && (
-            <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium text-gray-500">Oculto</span>
+          {!isAvailable && (
+            <span className="shrink-0 rounded bg-gray-700 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">Oculto</span>
           )}
         </div>
         <p className="text-[10px] font-medium text-gray-400 truncate">{product.category_name || "Sin categoría"}</p>
@@ -25,9 +26,9 @@ export default function ProductCard({ product, onToggle, onEdit, onDelete }) {
         <div className="mt-auto flex items-center justify-between pt-1">
           <div className="flex gap-1">
             <button onClick={() => onToggle(product.id, "is_available")}
-              className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs transition-colors ${product.is_available ? "bg-green-100 text-green-600 hover:bg-green-200" : "bg-gray-100 text-gray-400 hover:bg-gray-200"}`}
-              title={product.is_available ? "Visible" : "Oculto"}>
-              {product.is_available ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+              className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs transition-colors ${isAvailable ? "bg-green-100 text-green-600 hover:bg-green-200" : "bg-gray-700 text-white hover:bg-gray-800"}`}
+              title={isAvailable ? "Ocultar del menú (click para hacerlo)" : "Mostrar en el menú (click para hacerlo)"}>
+              {isAvailable ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
             </button>
             <button onClick={() => onToggle(product.id, "is_featured")}
               className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs transition-colors ${product.is_featured ? "bg-orange-100 text-orange-600 hover:bg-orange-200" : "bg-gray-100 text-gray-400 hover:bg-gray-200"}`}
