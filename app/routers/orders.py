@@ -141,6 +141,7 @@ async def export_orders_csv(
 
     query = select(Order).where(Order.restaurant_id == restaurant_id).options(
         selectinload(Order.items).selectinload(OrderItem.product),
+        selectinload(Order.table),
     )
 
     if from_date:
