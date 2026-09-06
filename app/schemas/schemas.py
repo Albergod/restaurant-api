@@ -10,6 +10,10 @@ class RestaurantCreate(BaseModel):
     admin_email: Optional[EmailStr] = None
     admin_password: Optional[str] = None
 
+class RestaurantUpdate(BaseModel):
+    name: Optional[str] = None
+    slug: Optional[str] = None
+
 class UserRegister(BaseModel):
     name: str
     email: EmailStr

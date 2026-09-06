@@ -14,6 +14,7 @@ import {
   XCircle,
   PowerOff,
   RotateCcw,
+  Pencil,
 } from "lucide-react"
 
 export default function SuperAdminRestaurantsPage() {
@@ -26,6 +27,9 @@ export default function SuperAdminRestaurantsPage() {
   const [slugInput, setSlugInput] = useState("")
   const [actionError, setActionError] = useState(null)
   const [acting, setActing] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [editForm, setEditForm] = useState({ name: "", slug: "" })
+  const [editError, setEditError] = useState(null)
 
   useEffect(() => {
     const token = getToken()
@@ -99,6 +103,39 @@ export default function SuperAdminRestaurantsPage() {
       const msg = String(err.message || "")
       const detail = msg.includes(":") ? msg.split(":").slice(1).join(":").trim() : msg
       alert(detail || "No se pudo reactivar")
+    } finally {
+      setActing(false)
+    }
+  }
+
+  function openEdit(r) {
+    setEditing(r)
+    setEditForm({ name: r.name, slug: r.slug })
+    setEditError(null)
+  }
+
+  function closeEdit() {
+    if (acting) return
+    setEditing(null)
+    setEditError(null)
+  }
+
+  async function saveEdit() {
+    if (!editing) return
+    setActing(true)
+    setEditError(null)
+    try {
+      await apiFetch(`/api/restaurants/${editing.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(editForm),
+      })
+      setEditing(null)
+      const data = await apiFetch("/api/restaurants/")
+      setRestaurants(data || [])
+    } catch (err) {
+      const msg = String(err.message || "")
+      const detail = msg.includes(":") ? msg.split(":").slice(1).join(":").trim() : msg
+      setEditError(detail || "No se pudo guardar")
     } finally {
       setActing(false)
     }
@@ -182,7 +219,7 @@ export default function SuperAdminRestaurantsPage() {
           </div>
         ) : (
           <div className="space-y-8">
-            {active.length > 0 && (
+                {active.length > 0 && (
               <section>
                 <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-gray-500">Activos</h2>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -193,6 +230,7 @@ export default function SuperAdminRestaurantsPage() {
                       acting={acting}
                       onDeactivate={openConfirm}
                       onReactivate={reactivate}
+                      onEdit={openEdit}
                     />
                   ))}
                 </div>
@@ -210,6 +248,7 @@ export default function SuperAdminRestaurantsPage() {
                       acting={acting}
                       onDeactivate={openConfirm}
                       onReactivate={reactivate}
+                      onEdit={openEdit}
                     />
                   ))}
                 </div>
@@ -275,11 +314,75 @@ export default function SuperAdminRestaurantsPage() {
           </div>
         </div>
       )}
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                <Pencil className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Editar restaurante</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Cambia el nombre y/o el slug. El slug es el identificador URL único.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-gray-700">Nombre</label>
+                <input
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none transition-all focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                  disabled={acting}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-gray-700">Slug</label>
+                <input
+                  value={editForm.slug}
+                  onChange={(e) => setEditForm({ ...editForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+                  disabled={acting}
+                />
+                <p className="mt-1 text-xs text-gray-500">Solo minúsculas, números y guiones.</p>
+              </div>
+            </div>
+
+            {editError && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={closeEdit}
+                disabled={acting}
+                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveEdit}
+                disabled={acting || !editForm.name.trim() || !editForm.slug.trim()}
+                className="flex-1 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-white transition-all hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {acting ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function RestaurantCard({ r, acting, onDeactivate, onReactivate }) {
+function RestaurantCard({ r, acting, onDeactivate, onReactivate, onEdit }) {
   return (
     <article
       className={`group rounded-2xl border bg-white p-5 shadow-sm transition-all hover:shadow-md ${
@@ -290,17 +393,27 @@ function RestaurantCard({ r, acting, onDeactivate, onReactivate }) {
         <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${r.is_active ? "bg-amber-50" : "bg-gray-100"}`}>
           <Store className={`h-5 w-5 ${r.is_active ? "text-amber-600" : "text-gray-400"}`} />
         </div>
-        {r.is_active ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Activo
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">
-            <XCircle className="h-3.5 w-3.5" />
-            Inactivo
-          </span>
-        )}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onEdit(r)}
+            disabled={acting}
+            title="Editar"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          {r.is_active ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Activo
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">
+              <XCircle className="h-3.5 w-3.5" />
+              Inactivo
+            </span>
+          )}
+        </div>
       </div>
 
       <h3 className="mt-4 text-base font-bold text-gray-900">{r.name}</h3>

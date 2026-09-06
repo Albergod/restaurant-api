@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import get_current_user, hash_password
 from app.models.models import Restaurant, User, UserRole, Order, OrderStatus
-from app.schemas.schemas import RestaurantCreate
+from app.schemas.schemas import RestaurantCreate, RestaurantUpdate
 
 router = APIRouter(prefix="/api/restaurants", tags=["Restaurantes"])
 
@@ -116,6 +116,44 @@ async def reactivate_restaurant(restaurant_id: int, db: AsyncSession = Depends(g
         )
 
     restaurant.is_active = True
+    await db.commit()
+    await db.refresh(restaurant)
+    return {"id": restaurant.id, "name": restaurant.name, "slug": restaurant.slug, "is_active": restaurant.is_active}
+
+
+@router.patch("/{restaurant_id}")
+async def update_restaurant(restaurant_id: int, data: RestaurantUpdate, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.superadmin.value:
+        raise HTTPException(status_code=403, detail="Solo superadmin puede editar restaurantes")
+
+    restaurant = (await db.execute(select(Restaurant).where(Restaurant.id == restaurant_id))).scalar_one_or_none()
+    if not restaurant:
+        raise HTTPException(status_code=404, detail="Restaurante no encontrado")
+
+    update_data = data.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No se proporcionaron datos para actualizar")
+
+    if "slug" in update_data:
+        new_slug = update_data["slug"].strip().lower()
+        if not new_slug:
+            raise HTTPException(status_code=400, detail="El slug no puede estar vacio")
+        slug_taken = (await db.execute(
+            select(Restaurant).where(Restaurant.slug == new_slug, Restaurant.id != restaurant_id)
+        )).scalar_one_or_none()
+        if slug_taken:
+            raise HTTPException(status_code=400, detail=f"El slug '{new_slug}' ya esta en uso")
+        update_data["slug"] = new_slug
+
+    if "name" in update_data:
+        new_name = update_data["name"].strip()
+        if not new_name:
+            raise HTTPException(status_code=400, detail="El nombre no puede estar vacio")
+        update_data["name"] = new_name
+
+    for field, value in update_data.items():
+        setattr(restaurant, field, value)
+
     await db.commit()
     await db.refresh(restaurant)
     return {"id": restaurant.id, "name": restaurant.name, "slug": restaurant.slug, "is_active": restaurant.is_active}
