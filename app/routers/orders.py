@@ -125,6 +125,75 @@ async def list_orders(status: Optional[OrderStatus] = None, db: AsyncSession = D
     await _attach_table_info_bulk(orders, db)
     return orders
 
+@router.get("/export")
+async def export_orders_csv(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Exporta los pedidos del restaurante del admin autenticado como CSV."""
+    if current_user["role"] != UserRole.admin.value:
+        raise HTTPException(status_code=403, detail="Solo administradores pueden exportar")
+    restaurant_id = current_user["restaurant_id"]
+    if not restaurant_id:
+        raise HTTPException(status_code=400, detail="El admin no tiene restaurante asignado")
+
+    query = select(Order).where(Order.restaurant_id == restaurant_id).options(
+        selectinload(Order.items).selectinload(OrderItem.product),
+    )
+
+    if from_date:
+        try:
+            from_dt = datetime.strptime(from_date, "%Y-%m-%d")
+            query = query.where(Order.created_at >= from_dt)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="from_date debe ser YYYY-MM-DD")
+    if to_date:
+        try:
+            to_dt = datetime.strptime(to_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+            query = query.where(Order.created_at <= to_dt)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="to_date debe ser YYYY-MM-DD")
+
+    query = query.order_by(Order.created_at.desc())
+    orders = (await db.execute(query)).scalars().all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "id", "fecha", "mesa", "tipo", "estado", "items", "total", "notas",
+    ])
+    for o in orders:
+        items_str = " | ".join(
+            f"{i.quantity}x {i.product.name if i.product else '?'} (${i.unit_price})"
+            for i in o.items
+        )
+        writer.writerow([
+            o.id,
+            o.created_at.strftime("%Y-%m-%d %H:%M:%S") if o.created_at else "",
+            o.table.number if o.table else (o.customer_name or ""),
+            o.order_type.value if o.order_type else "",
+            o.status.value if o.status else "",
+            items_str,
+            f"{o.total:.2f}",
+            (o.notes or "").replace("\n", " "),
+        ])
+
+    filename_parts = ["pedidos"]
+    if from_date:
+        filename_parts.append(from_date)
+    if to_date:
+        filename_parts.append(to_date)
+    filename = "_".join(filename_parts) + ".csv"
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
 @router.get("/kitchen", response_model=List[KitchenOrderOut])
 async def kitchen_panel(db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
     allowed = [UserRole.kitchen.value, UserRole.waiter.value, UserRole.admin.value, UserRole.superadmin.value]
@@ -199,73 +268,3 @@ async def delete_order(order_id: int, db: AsyncSession = Depends(get_db), curren
         await db.delete(h)
     await db.delete(order)
     await db.commit()
-
-
-@router.get("/export")
-async def export_orders_csv(
-    from_date: Optional[str] = None,
-    to_date: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Exporta los pedidos del restaurante del admin autenticado como CSV."""
-    if current_user["role"] != UserRole.admin.value:
-        raise HTTPException(status_code=403, detail="Solo administradores pueden exportar")
-    restaurant_id = current_user["restaurant_id"]
-    if not restaurant_id:
-        raise HTTPException(status_code=400, detail="El admin no tiene restaurante asignado")
-
-    query = select(Order).where(Order.restaurant_id == restaurant_id).options(
-        selectinload(Order.items).selectinload(OrderItem.product),
-    )
-
-    if from_date:
-        try:
-            from_dt = datetime.strptime(from_date, "%Y-%m-%d")
-            query = query.where(Order.created_at >= from_dt)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="from_date debe ser YYYY-MM-DD")
-    if to_date:
-        try:
-            to_dt = datetime.strptime(to_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
-            query = query.where(Order.created_at <= to_dt)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="to_date debe ser YYYY-MM-DD")
-
-    query = query.order_by(Order.created_at.desc())
-    orders = (await db.execute(query)).scalars().all()
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "id", "fecha", "mesa", "tipo", "estado", "items", "total", "notas",
-    ])
-    for o in orders:
-        items_str = " | ".join(
-            f"{i.quantity}x {i.product.name if i.product else '?'} (${i.unit_price})"
-            for i in o.items
-        )
-        writer.writerow([
-            o.id,
-            o.created_at.strftime("%Y-%m-%d %H:%M:%S") if o.created_at else "",
-            o.table.number if o.table else (o.customer_name or ""),
-            o.order_type.value if o.order_type else "",
-            o.status.value if o.status else "",
-            items_str,
-            f"{o.total:.2f}",
-            (o.notes or "").replace("\n", " "),
-        ])
-
-    filename_parts = ["pedidos"]
-    if from_date:
-        filename_parts.append(from_date)
-    if to_date:
-        filename_parts.append(to_date)
-    filename = "_".join(filename_parts) + ".csv"
-
-    output.seek(0)
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
