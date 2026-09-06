@@ -21,6 +21,9 @@ export default function AdminDashboard() {
   const [authorized, setAuthorized] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [ordersList, setOrdersList] = useState([])
+  const [fromDate, setFromDate] = useState("")
+  const [toDate, setToDate] = useState("")
   const [stats, setStats] = useState({
     totalOrders: 0,
     pendingOrders: 0,
@@ -47,6 +50,14 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!authorized) return
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    setFromDate(today.toISOString().slice(0, 10))
+    setToDate(today.toISOString().slice(0, 10))
+  }, [authorized])
+
+  useEffect(() => {
+    if (!authorized) return
     let cancelled = false
 
     async function loadStats() {
@@ -62,6 +73,8 @@ export default function AdminDashboard() {
         const ordersList = Array.isArray(orders) ? orders : orders?.orders || []
         const today = new Date()
         today.setHours(0, 0, 0, 0)
+
+        setOrdersList(ordersList)
 
         const todayOrdersList = ordersList.filter(
           (o) => new Date(o.created_at) >= today
@@ -173,6 +186,40 @@ export default function AdminDashboard() {
     { label: "Listos", value: stats.readyCount, color: "text-green-600 bg-green-50 border-green-200" },
   ]
 
+  const statusLabel = {
+    pending: "Pendiente",
+    confirmed: "Confirmado",
+    preparing: "Preparando",
+    ready: "Listo",
+    delivered: "Entregado",
+    cancelled: "Cancelado",
+  }
+
+  const statusColor = {
+    pending: "bg-yellow-100 text-yellow-800",
+    confirmed: "bg-blue-100 text-blue-800",
+    preparing: "bg-orange-100 text-orange-800",
+    ready: "bg-green-100 text-green-800",
+    delivered: "bg-emerald-100 text-emerald-800",
+    cancelled: "bg-red-100 text-red-800",
+  }
+
+  const from = fromDate ? new Date(fromDate + "T00:00:00") : null
+  const to = toDate ? new Date(toDate + "T23:59:59") : null
+  const filteredOrders = ordersList
+    .filter((o) => {
+      if (!o.created_at) return false
+      const d = new Date(o.created_at)
+      if (from && d < from) return false
+      if (to && d > to) return false
+      return true
+    })
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
+  const filteredTotal = filteredOrders
+    .filter((o) => o.status === "delivered")
+    .reduce((s, o) => s + Number(o.total || 0), 0)
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-8">
@@ -258,6 +305,82 @@ export default function AdminDashboard() {
             </div>
           </button>
         </div>
+      </div>
+
+      {/* Historial de pedidos */}
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">Historial de pedidos</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {filteredOrders.length} pedido(s) · ${filteredTotal.toFixed(2)} entregados
+            </p>
+          </div>
+          <div className="flex items-center gap-2 print:hidden">
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs outline-none focus:border-amber-400"
+            />
+            <span className="text-xs text-gray-400">hasta</span>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs outline-none focus:border-amber-400"
+            />
+          </div>
+        </div>
+
+        {filteredOrders.length === 0 ? (
+          <div className="px-5 py-8 text-center text-sm text-gray-400">
+            No hay pedidos en el rango seleccionado.
+          </div>
+        ) : (
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 text-left text-xs uppercase tracking-wider text-gray-400">
+                  <th className="px-5 py-3 font-semibold">Fecha</th>
+                  <th className="px-5 py-3 font-semibold">Mesa</th>
+                  <th className="px-5 py-3 font-semibold">Items</th>
+                  <th className="px-5 py-3 font-semibold text-right">Total</th>
+                  <th className="px-5 py-3 font-semibold">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOrders.map((o) => (
+                  <tr key={o.id} className="border-b border-gray-50 last:border-0">
+                    <td className="px-5 py-3 whitespace-nowrap text-gray-600">
+                      {new Date(o.created_at).toLocaleString("es-ES", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                    <td className="px-5 py-3 text-gray-600">{o.table_number || o.customer_name || "—"}</td>
+                    <td className="px-5 py-3 text-gray-600 max-w-[320px]">
+                      {(o.items || []).map((i, idx) => (
+                        <span key={idx} className="block truncate">
+                          {i.quantity}x {i.product_name}
+                        </span>
+                      ))}
+                    </td>
+                    <td className="px-5 py-3 text-right font-semibold text-gray-900">${Number(o.total).toFixed(2)}</td>
+                    <td className="px-5 py-3">
+                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColor[o.status] || "bg-gray-100 text-gray-600"}`}>
+                        {statusLabel[o.status] || o.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )
