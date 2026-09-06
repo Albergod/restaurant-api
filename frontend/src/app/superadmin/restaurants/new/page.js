@@ -132,41 +132,44 @@ export default function NewRestaurantPage() {
               <h2 className="text-lg font-bold text-green-900">Restaurante creado</h2>
             </div>
             <p className="mt-2 text-sm text-green-800">
-              Guarda estas credenciales. La contraseña <strong>no se mostrará de nuevo</strong>.
+              Guarda estas credenciales. Las contraseñas <strong>no se mostrarán de nuevo</strong>.
             </p>
 
-            <dl className="mt-5 space-y-3 text-sm">
+            <div className="mt-5 space-y-4">
               <div>
-                <dt className="font-semibold text-gray-700">Restaurante</dt>
-                <dd className="mt-1 text-gray-900">{created.name}</dd>
+                <p className="text-sm font-bold text-gray-700">Restaurante</p>
+                <p className="mt-1 text-sm text-gray-900">{created.name}</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Slug: <code className="rounded bg-white px-1.5 py-0.5 font-mono">{created.slug}</code>
+                </p>
               </div>
-              <div>
-                <dt className="font-semibold text-gray-700">Slug</dt>
-                <dd className="mt-1"><code className="rounded bg-white px-2 py-1 font-mono text-xs border border-gray-200">{created.slug}</code></dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-gray-700">Email del administrador</dt>
-                <dd className="mt-1 flex items-center gap-2">
-                  <code className="rounded bg-white px-2 py-1 font-mono text-xs border border-gray-200">{created.admin_email}</code>
-                  <button onClick={() => copy(created.admin_email)} className="text-gray-400 hover:text-amber-600">
-                    <Copy className="h-4 w-4" />
-                  </button>
-                </dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-gray-700">Contraseña</dt>
-                <dd className="mt-1 flex items-center gap-2">
-                  <code className="rounded bg-white px-2 py-1 font-mono text-xs border border-gray-200">{created.admin_password}</code>
-                  <button onClick={() => copy(created.admin_password)} className="text-gray-400 hover:text-amber-600">
-                    <Copy className="h-4 w-4" />
-                  </button>
-                </dd>
-              </div>
-            </dl>
 
-            {copied && (
-              <p className="mt-3 text-xs font-medium text-green-700">Copiado al portapapeles</p>
-            )}
+              <CredentialBlock
+                title="Administrador"
+                email={created.admin_email}
+                password={created.admin_password}
+                onCopy={copy}
+                copied={copied}
+              />
+              {created.waiter_email && (
+                <CredentialBlock
+                  title="Mesero"
+                  email={created.waiter_email}
+                  password={created.waiter_password}
+                  onCopy={copy}
+                  copied={copied}
+                />
+              )}
+              {created.kitchen_email && (
+                <CredentialBlock
+                  title="Cocina"
+                  email={created.kitchen_email}
+                  password={created.kitchen_password}
+                  onCopy={copy}
+                  copied={copied}
+                />
+              )}
+            </div>
 
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
               <button
@@ -191,6 +194,27 @@ export default function NewRestaurantPage() {
       </div>
     )
   }
+}
+
+function CredentialBlock({ title, email, password, onCopy, copied }) {
+  return (
+    <div className="rounded-lg border border-green-200 bg-white p-3">
+      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">{title}</p>
+      <div className="mt-2 flex items-center gap-2">
+        <code className="flex-1 truncate rounded bg-gray-50 px-2 py-1 font-mono text-xs">{email}</code>
+        <button onClick={() => onCopy(email)} className="text-gray-400 hover:text-amber-600">
+          <Copy className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="mt-1.5 flex items-center gap-2">
+        <code className="flex-1 truncate rounded bg-gray-50 px-2 py-1 font-mono text-xs">{password}</code>
+        <button onClick={() => onCopy(password)} className="text-gray-400 hover:text-amber-600">
+          <Copy className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  )
+}
 
   return (
     <div className="min-h-screen bg-[#fafafa]">

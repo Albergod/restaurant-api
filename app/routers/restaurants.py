@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 import uuid
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.security import get_current_user, hash_password
 from app.models.models import Restaurant, User, UserRole, Order, OrderStatus
 from app.schemas.schemas import RestaurantCreate
@@ -23,13 +24,30 @@ async def create_restaurant(data: RestaurantCreate, db: AsyncSession = Depends(g
 
     admin_email = data.admin_email or f"admin-{restaurant.id}@{data.slug}.com"
     admin_password = data.admin_password or uuid.uuid4().hex[:8]
+    waiter_email = f"mesero@{data.slug}.com"
+    waiter_password = settings.DEFAULT_WAITER_PASSWORD
+    kitchen_email = f"cocina@{data.slug}.com"
+    kitchen_password = settings.DEFAULT_KITCHEN_PASSWORD
 
     admin_user = User(name=data.admin_name or "Administrador", email=admin_email, hashed_password=hash_password(admin_password), role=UserRole.admin, restaurant_id=restaurant.id)
     db.add(admin_user)
+    db.add(User(name="Mesero", email=waiter_email, hashed_password=hash_password(waiter_password), role=UserRole.waiter, restaurant_id=restaurant.id))
+    db.add(User(name="Cocina", email=kitchen_email, hashed_password=hash_password(kitchen_password), role=UserRole.kitchen, restaurant_id=restaurant.id))
     await db.commit()
     await db.refresh(restaurant)
 
-    return {"id": restaurant.id, "name": restaurant.name, "slug": restaurant.slug, "is_active": restaurant.is_active, "admin_email": admin_email, "admin_password": admin_password}
+    return {
+        "id": restaurant.id,
+        "name": restaurant.name,
+        "slug": restaurant.slug,
+        "is_active": restaurant.is_active,
+        "admin_email": admin_email,
+        "admin_password": admin_password,
+        "waiter_email": waiter_email,
+        "waiter_password": waiter_password,
+        "kitchen_email": kitchen_email,
+        "kitchen_password": kitchen_password,
+    }
 
 @router.get("/", response_model=list)
 async def list_restaurants(db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
