@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { apiFetch, getToken, getRole, logout, API_URL } from "@/lib/api"
+import { apiFetch, getToken, getRole, logout } from "@/lib/api"
 import {
   Users,
   ShoppingBag,
@@ -14,16 +14,12 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Loader2,
-  Download,
-  Calendar,
 } from "lucide-react"
 
 export default function AdminDashboard() {
   const router = useRouter()
   const [authorized, setAuthorized] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [exporting, setExporting] = useState(false)
-  const [exportError, setExportError] = useState(null)
   const [error, setError] = useState(null)
   const [stats, setStats] = useState({
     totalOrders: 0,
@@ -177,37 +173,6 @@ export default function AdminDashboard() {
     { label: "Listos", value: stats.readyCount, color: "text-green-600 bg-green-50 border-green-200" },
   ]
 
-  function handleExport() {
-    const today = new Date()
-    const from = new Date(today)
-    from.setMonth(from.getMonth() - 1)
-    const fromDate = from.toISOString().slice(0, 10)
-    const toDate = today.toISOString().slice(0, 10)
-    setExporting(true)
-    setExportError(null)
-    fetch(
-      `${API_URL}/api/orders/export?from_date=${fromDate}&to_date=${toDate}`,
-      { headers: { Authorization: `Bearer ${getToken()}` } }
-    )
-      .then(async (res) => {
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}))
-          throw new Error(body.detail || `Error ${res.status}`)
-        }
-        const blob = await res.blob()
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = url
-        a.download = `pedidos_${fromDate}_${toDate}.csv`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
-      })
-      .catch((err) => setExportError(err.message || "Error al exportar"))
-      .finally(() => setExporting(false))
-  }
-
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-8">
@@ -293,34 +258,6 @@ export default function AdminDashboard() {
             </div>
           </button>
         </div>
-      </div>
-
-      {/* Reportes */}
-      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-bold text-gray-900">Reportes</h2>
-        </div>
-        <div className="grid gap-3 p-5 sm:grid-cols-2">
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="flex items-center gap-3 rounded-xl bg-gray-50 p-4 text-left transition-all hover:bg-amber-50 hover:shadow-sm disabled:opacity-50"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-100 text-green-600">
-              {exporting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
-            </div>
-            <div>
-              <p className="text-sm font-bold text-gray-900">Exportar pedidos (CSV)</p>
-              <p className="text-xs text-gray-500">Últimos 30 días, para Excel</p>
-            </div>
-          </button>
-        </div>
-        {exportError && (
-          <div className="flex items-center gap-2 px-5 pb-4 text-xs text-red-600">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{exportError}</span>
-          </div>
-        )}
       </div>
     </div>
   )
