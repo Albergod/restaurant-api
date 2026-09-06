@@ -26,6 +26,26 @@ function slugify(value) {
     .replace(/(^-|-$)/g, "")
 }
 
+function CredentialBlock({ title, email, password, onCopy }) {
+  return (
+    <div className="rounded-lg border border-green-200 bg-white p-3">
+      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">{title}</p>
+      <div className="mt-2 flex items-center gap-2">
+        <code className="flex-1 truncate rounded bg-gray-50 px-2 py-1 font-mono text-xs">{email}</code>
+        <button onClick={() => onCopy(email)} className="text-gray-400 hover:text-amber-600">
+          <Copy className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="mt-1.5 flex items-center gap-2">
+        <code className="flex-1 truncate rounded bg-gray-50 px-2 py-1 font-mono text-xs">{password}</code>
+        <button onClick={() => onCopy(password)} className="text-gray-400 hover:text-amber-600">
+          <Copy className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function NewRestaurantPage() {
   const router = useRouter()
   const [authorized, setAuthorized] = useState(false)
@@ -144,32 +164,18 @@ export default function NewRestaurantPage() {
                 </p>
               </div>
 
-              <CredentialBlock
-                title="Administrador"
-                email={created.admin_email}
-                password={created.admin_password}
-                onCopy={copy}
-                copied={copied}
-              />
+              <CredentialBlock title="Administrador" email={created.admin_email} password={created.admin_password} onCopy={copy} />
               {created.waiter_email && (
-                <CredentialBlock
-                  title="Mesero"
-                  email={created.waiter_email}
-                  password={created.waiter_password}
-                  onCopy={copy}
-                  copied={copied}
-                />
+                <CredentialBlock title="Mesero" email={created.waiter_email} password={created.waiter_password} onCopy={copy} />
               )}
               {created.kitchen_email && (
-                <CredentialBlock
-                  title="Cocina"
-                  email={created.kitchen_email}
-                  password={created.kitchen_password}
-                  onCopy={copy}
-                  copied={copied}
-                />
+                <CredentialBlock title="Cocina" email={created.kitchen_email} password={created.kitchen_password} onCopy={copy} />
               )}
             </div>
+
+            {copied && (
+              <p className="mt-3 text-xs font-medium text-green-700">Copiado al portapapeles</p>
+            )}
 
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
               <button
@@ -194,27 +200,6 @@ export default function NewRestaurantPage() {
       </div>
     )
   }
-}
-
-function CredentialBlock({ title, email, password, onCopy, copied }) {
-  return (
-    <div className="rounded-lg border border-green-200 bg-white p-3">
-      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">{title}</p>
-      <div className="mt-2 flex items-center gap-2">
-        <code className="flex-1 truncate rounded bg-gray-50 px-2 py-1 font-mono text-xs">{email}</code>
-        <button onClick={() => onCopy(email)} className="text-gray-400 hover:text-amber-600">
-          <Copy className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="mt-1.5 flex items-center gap-2">
-        <code className="flex-1 truncate rounded bg-gray-50 px-2 py-1 font-mono text-xs">{password}</code>
-        <button onClick={() => onCopy(password)} className="text-gray-400 hover:text-amber-600">
-          <Copy className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  )
-}
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
@@ -290,6 +275,7 @@ function CredentialBlock({ title, email, password, onCopy, copied }) {
             </h2>
             <p className="-mt-3 text-xs text-gray-500">
               Si dejas el email o la contraseña vacíos, el sistema los generará automáticamente.
+              También se crearán mesero y cocina con credenciales por defecto.
             </p>
 
             <div>
