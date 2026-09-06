@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: restaurant-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: BACKEND_CORS_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: SEED_DEFAULT_USERS
+        value: true
+      - key: ALLOW_PUBLIC_STAFF_REGISTRATION
+        value: false
+      - key: DEFAULT_ADMIN_PASSWORD
+        sync: false
+      - key: DEFAULT_WAITER_PASSWORD
+        sync: false
+      - key: DEFAULT_KITCHEN_PASSWORD
+        sync: false
+      - key: MEDIA_STORAGE
+        value: cloudinary
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
