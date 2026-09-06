@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 import uuid
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import get_current_user, hash_password
-from app.models.models import Restaurant, User, UserRole, Order, OrderStatus
+from app.models.models import Restaurant, User, UserRole, Order, OrderStatus, OrderItem, OrderStatusHistory, Category, Product, Table, ChatSession, ChatMessage, LoyaltyPoints
 from app.schemas.schemas import RestaurantCreate, RestaurantUpdate
 
 router = APIRouter(prefix="/api/restaurants", tags=["Restaurantes"])
@@ -157,3 +157,47 @@ async def update_restaurant(restaurant_id: int, data: RestaurantUpdate, db: Asyn
     await db.commit()
     await db.refresh(restaurant)
     return {"id": restaurant.id, "name": restaurant.name, "slug": restaurant.slug, "is_active": restaurant.is_active}
+
+
+@router.post("/{restaurant_id}/reset", status_code=200)
+async def reset_restaurant_content(restaurant_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """Elimina pedidos, mesas, productos, categorias, chat y puntos de fidelidad.
+
+    Conserva el restaurante, sus usuarios y configuracion. Util para que un
+    cliente que termina una prueba o cambia de carta empiece de cero.
+    """
+    if current_user["role"] != UserRole.superadmin.value:
+        raise HTTPException(status_code=403, detail="Solo superadmin puede resetear restaurantes")
+
+    restaurant = (await db.execute(select(Restaurant).where(Restaurant.id == restaurant_id))).scalar_one_or_none()
+    if not restaurant:
+        raise HTTPException(status_code=404, detail="Restaurante no encontrado")
+
+    active_orders = (await db.execute(
+        select(func.count()).select_from(Order).where(
+            Order.restaurant_id == restaurant_id,
+            Order.status.in_([OrderStatus.pending, OrderStatus.confirmed, OrderStatus.preparing, OrderStatus.ready]),
+        )
+    )).scalar()
+    if active_orders > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se puede resetear: hay {active_orders} pedido(s) activo(s). Cierralos primero.",
+        )
+
+    counts = {}
+    for model in [OrderStatusHistory, OrderItem, ChatMessage, ChatSession, LoyaltyPoints, Order, Product, Category, Table]:
+        result = await db.execute(
+            select(func.count()).select_from(model).where(model.restaurant_id == restaurant_id)
+        )
+        counts[model.__name__] = result.scalar()
+        await db.execute(
+            delete(model).where(model.restaurant_id == restaurant_id)
+        )
+
+    await db.commit()
+    return {
+        "restaurant_id": restaurant_id,
+        "deleted": counts,
+        "message": "Contenido del restaurante eliminado. Restaurante y usuarios conservados.",
+    }

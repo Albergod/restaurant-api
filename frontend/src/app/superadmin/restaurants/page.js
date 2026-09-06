@@ -15,6 +15,7 @@ import {
   PowerOff,
   RotateCcw,
   Pencil,
+  Eraser,
 } from "lucide-react"
 
 export default function SuperAdminRestaurantsPage() {
@@ -30,6 +31,9 @@ export default function SuperAdminRestaurantsPage() {
   const [editing, setEditing] = useState(null)
   const [editForm, setEditForm] = useState({ name: "", slug: "" })
   const [editError, setEditError] = useState(null)
+  const [resetting, setResetting] = useState(null)
+  const [resetSlugInput, setResetSlugInput] = useState("")
+  const [resetError, setResetError] = useState(null)
 
   useEffect(() => {
     const token = getToken()
@@ -141,6 +145,45 @@ export default function SuperAdminRestaurantsPage() {
     }
   }
 
+  function openReset(r) {
+    setResetting(r)
+    setResetSlugInput("")
+    setResetError(null)
+  }
+
+  function closeReset() {
+    if (acting) return
+    setResetting(null)
+    setResetSlugInput("")
+    setResetError(null)
+  }
+
+  async function performReset() {
+    if (!resetting) return
+    if (resetSlugInput.trim() !== resetting.slug) {
+      setResetError(`Escribe exactamente el slug "${resetting.slug}" para confirmar`)
+      return
+    }
+    setActing(true)
+    setResetError(null)
+    try {
+      const result = await apiFetch(`/api/restaurants/${resetting.id}/reset`, { method: "POST" })
+      setResetting(null)
+      setResetSlugInput("")
+      const deleted = result.deleted || {}
+      const total = Object.values(deleted).reduce((a, b) => a + b, 0)
+      alert(`Reset completado. Se eliminaron ${total} registros (productos, mesas, pedidos, chat, puntos).`)
+      const data = await apiFetch("/api/restaurants/")
+      setRestaurants(data || [])
+    } catch (err) {
+      const msg = String(err.message || "")
+      const detail = msg.includes(":") ? msg.split(":").slice(1).join(":").trim() : msg
+      setResetError(detail || "No se pudo resetear")
+    } finally {
+      setActing(false)
+    }
+  }
+
   if (!authorized) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#fafafa]">
@@ -231,6 +274,7 @@ export default function SuperAdminRestaurantsPage() {
                       onDeactivate={openConfirm}
                       onReactivate={reactivate}
                       onEdit={openEdit}
+                      onReset={openReset}
                     />
                   ))}
                 </div>
@@ -249,6 +293,7 @@ export default function SuperAdminRestaurantsPage() {
                       onDeactivate={openConfirm}
                       onReactivate={reactivate}
                       onEdit={openEdit}
+                      onReset={openReset}
                     />
                   ))}
                 </div>
@@ -378,11 +423,77 @@ export default function SuperAdminRestaurantsPage() {
           </div>
         </div>
       )}
+
+      {resetting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-100">
+                <Eraser className="h-5 w-5 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Resetear contenido</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Vas a eliminar <strong>todos los datos operacionales</strong> de <strong>{resetting.name}</strong>:
+                </p>
+                <ul className="mt-2 ml-4 list-disc text-xs text-gray-500 space-y-0.5">
+                  <li>Productos y categorías</li>
+                  <li>Mesas y QRs</li>
+                  <li>Pedidos e historial de estados</li>
+                  <li>Sesiones de chat y mensajes</li>
+                  <li>Puntos de fidelidad de clientes</li>
+                </ul>
+                <p className="mt-2 text-xs text-gray-500">
+                  El restaurante, los usuarios y las credenciales se conservan.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <label className="mb-1.5 block text-sm font-semibold text-gray-700">
+                Escribe <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs">{resetting.slug}</code> para confirmar
+              </label>
+              <input
+                value={resetSlugInput}
+                onChange={(e) => setResetSlugInput(e.target.value)}
+                placeholder={resetting.slug}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                autoFocus
+                disabled={acting}
+              />
+            </div>
+
+            {resetError && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>{resetError}</span>
+              </div>
+            )}
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={closeReset}
+                disabled={acting}
+                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={performReset}
+                disabled={acting || resetSlugInput.trim() !== resetting.slug}
+                className="flex-1 rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-bold text-white transition-all hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {acting ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Resetear"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function RestaurantCard({ r, acting, onDeactivate, onReactivate, onEdit }) {
+function RestaurantCard({ r, acting, onDeactivate, onReactivate, onEdit, onReset }) {
   return (
     <article
       className={`group rounded-2xl border bg-white p-5 shadow-sm transition-all hover:shadow-md ${
@@ -442,6 +553,15 @@ function RestaurantCard({ r, acting, onDeactivate, onReactivate, onEdit }) {
             Reactivar
           </button>
         )}
+        <button
+          onClick={() => onReset(r)}
+          disabled={acting}
+          title="Resetear contenido (elimina productos, mesas, pedidos, chat)"
+          className="flex items-center justify-center gap-1.5 rounded-lg border border-orange-200 px-3 py-1.5 text-xs font-semibold text-orange-600 transition-colors hover:bg-orange-50 disabled:opacity-50"
+        >
+          <Eraser className="h-3.5 w-3.5" />
+          Reset
+        </button>
       </div>
     </article>
   )
