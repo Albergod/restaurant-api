@@ -186,14 +186,31 @@ async def reset_restaurant_content(restaurant_id: int, db: AsyncSession = Depend
         )
 
     counts = {}
-    for model in [OrderStatusHistory, OrderItem, ChatMessage, ChatSession, LoyaltyPoints, Order, Product, Category, Table]:
-        result = await db.execute(
-            select(func.count()).select_from(model).where(model.restaurant_id == restaurant_id)
-        )
-        counts[model.__name__] = result.scalar()
-        await db.execute(
-            delete(model).where(model.restaurant_id == restaurant_id)
-        )
+
+    order_ids = select(Order.id).where(Order.restaurant_id == restaurant_id)
+    session_ids = select(ChatSession.id).where(ChatSession.restaurant_id == restaurant_id)
+
+    targets = [
+        (OrderStatusHistory, OrderStatusHistory.order_id, order_ids),
+        (OrderItem, OrderItem.order_id, order_ids),
+        (ChatMessage, ChatMessage.session_id, session_ids),
+        (ChatSession, None, None),
+        (LoyaltyPoints, None, None),
+        (Order, None, None),
+        (Product, None, None),
+        (Category, None, None),
+        (Table, None, None),
+    ]
+    for model, child_column, parent_ids in targets:
+        stmt = delete(model)
+        if child_column is not None:
+            stmt = stmt.where(child_column.in_(parent_ids))
+        else:
+            stmt = stmt.where(model.restaurant_id == restaurant_id)
+        result = await db.execute(stmt)
+        counts[model.__name__] = result.rowcount
+        if child_column is not None:
+            await db.flush()
 
     await db.commit()
     return {
