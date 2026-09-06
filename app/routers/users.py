@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import hash_password, get_current_user
-from app.models.models import User, UserRole
+from app.models.models import Restaurant, User, UserRole
 from app.schemas.schemas import UserOut, UserUpdate, UserRegister
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -22,11 +22,37 @@ async def list_users(db: AsyncSession = Depends(get_db), current_user: dict = De
 async def create_user(data: UserRegister, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user["role"] not in [UserRole.admin.value, UserRole.superadmin.value]:
         raise HTTPException(status_code=403, detail="Solo administradores")
-    restaurant_id = current_user["restaurant_id"] if current_user["role"] != UserRole.superadmin.value else data.restaurant_id
+
+    needs_restaurant = data.role in [UserRole.admin.value, UserRole.waiter.value, UserRole.kitchen.value]
+
+    if current_user["role"] == UserRole.superadmin.value:
+        restaurant_id = data.restaurant_id
+        if needs_restaurant and not restaurant_id:
+            raise HTTPException(status_code=400, detail="Este rol requiere restaurant_id")
+    else:
+        restaurant_id = current_user["restaurant_id"]
+        if not restaurant_id:
+            raise HTTPException(status_code=400, detail="El admin actual no tiene restaurante asignado")
+
     existing = await db.execute(select(User).where(User.email == data.email))
     if existing.scalar_one_or_none():
         raise HTTPException(409, "Email already registered")
-    user = User(name=data.name, email=data.email, hashed_password=hash_password(data.password), role=data.role, is_active=True, restaurant_id=restaurant_id)
+
+    if restaurant_id is not None:
+        restaurant = (await db.execute(
+            select(Restaurant).where(Restaurant.id == restaurant_id, Restaurant.is_active == True)
+        )).scalar_one_or_none()
+        if not restaurant:
+            raise HTTPException(status_code=400, detail="El restaurante no existe o está inactivo")
+
+    user = User(
+        name=data.name,
+        email=data.email,
+        hashed_password=hash_password(data.password),
+        role=data.role,
+        is_active=True,
+        restaurant_id=restaurant_id,
+    )
     db.add(user)
     await db.commit()
     await db.refresh(user)
