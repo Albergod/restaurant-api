@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     SEED_DEFAULT_USERS: bool = True
     ALLOW_PUBLIC_STAFF_REGISTRATION: bool = False
+    SUPERADMIN_EMAIL: str = ""
+    SUPERADMIN_PASSWORD: str = ""
     DEFAULT_ADMIN_PASSWORD: str = "admin123"
     DEFAULT_WAITER_PASSWORD: str = "mesero123"
     DEFAULT_KITCHEN_PASSWORD: str = "cocina123"

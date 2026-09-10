@@ -30,25 +30,56 @@ uploads_dir = Path(__file__).resolve().parent.parent / "uploads"
 uploads_dir.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
-async def _seed_default_data():
-    async with AsyncSessionLocal() as db:
-        existing_users = await db.execute(select(func.count()).select_from(User))
-        if existing_users.scalar() > 0:
-            print("ℹ️ Seed omitido: ya existen usuarios.")
-            return
+async def _sync_superadmin(db):
+    """Crea o actualiza el superadmin a partir de la configuración.
 
-        has_users = False
+    Las credenciales vienen de SUPERADMIN_EMAIL / SUPERADMIN_PASSWORD en el
+    entorno, nunca hardcodeadas en el código. Idempotente: se ejecuta en cada
+    arranque sin duplicar usuarios.
+    """
+    email = settings.SUPERADMIN_EMAIL.strip()
+    password = settings.SUPERADMIN_PASSWORD.strip()
+    if not email or not password:
+        print("⚠️ SUPERADMIN_EMAIL/PASSWORD vacíos: no se gestiona el superadmin desde config.")
+        return
 
+    superadmin = (await db.execute(
+        select(User).where(User.role == UserRole.superadmin).order_by(User.id).limit(1)
+    )).scalar_one_or_none()
+
+    if superadmin is None:
         superadmin = User(
             name="Superadmin",
-            email="superadmin@system.com",
-            hashed_password=hash_password("superadmin123"),
+            email=email,
+            hashed_password=hash_password(password),
             role=UserRole.superadmin,
             restaurant_id=None,
         )
         db.add(superadmin)
+        print("✅ Superadmin creado desde configuración.")
+    else:
+        changes = []
+        if superadmin.email != email:
+            superadmin.email = email
+            changes.append("email")
+        superadmin.hashed_password = hash_password(password)
+        changes.append("password")
+        print("✅ Superadmin sincronizado desde configuración (había usuario existente).")
+
+
+async def _seed_default_data():
+    async with AsyncSessionLocal() as db:
+        existing_users = await db.execute(select(func.count()).select_from(User))
+        await _sync_superadmin(db)
+        await db.commit()
+        if existing_users.scalar() > 0:
+            print("ℹ️ Seed de demo omitido: ya existen usuarios.")
+            return
+
+        has_users = False
 
         restaurant_count_result = await db.execute(select(func.count()).select_from(Restaurant))
+
         restaurant = None
         if restaurant_count_result.scalar() == 0:
             restaurant = Restaurant(name="Restaurante Demo", slug="demo", is_active=True)
