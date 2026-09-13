@@ -36,6 +36,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState("")
   const [connected, setConnected] = useState(false)
+  const [closed, setClosed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const bottomRef = useRef(null)
@@ -110,9 +111,14 @@ export default function ChatPage() {
         const msg = JSON.parse(e.data)
         setMessages((prev) => mergeMessages(prev, [msg]))
       }
-      ws.onclose = () => {
+      ws.onclose = (e) => {
         if (cancelled) return
         setConnected(false)
+        // La sesión fue cerrada (pedido entregado): no reconectar, el chat terminó.
+        if (e.code === 4001) {
+          setClosed(true)
+          return
+        }
         reconnectTimeout = setTimeout(() => { if (!cancelled) connect() }, 3000)
       }
       ws.onerror = () => {
@@ -138,7 +144,7 @@ export default function ChatPage() {
   }, [messages])
 
   function sendMessage() {
-    if (!input.trim() || !currentWsRef.current || currentWsRef.current.readyState !== WebSocket.OPEN)
+    if (closed || !input.trim() || !currentWsRef.current || currentWsRef.current.readyState !== WebSocket.OPEN)
       return
     currentWsRef.current.send(input.trim())
     setInput("")
@@ -186,17 +192,25 @@ export default function ChatPage() {
           <div className="flex items-center gap-1.5">
             <span
               className={`inline-block h-2 w-2 rounded-full ${
-                connected ? "bg-green-500" : "bg-red-400"
+                closed ? "bg-gray-300" : connected ? "bg-green-500" : "bg-red-400"
               }`}
             />
             <p className="text-xs text-gray-400">
-              {connected ? "Conectado" : "Desconectado"}
+              {closed ? "Finalizado" : connected ? "Conectado" : "Desconectado"}
             </p>
           </div>
         </div>
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
+        {closed && (
+          <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <MessageSquare className="h-4 w-4 shrink-0 text-amber-500" />
+            <p className="text-xs font-medium text-amber-700">
+              Este chat finalizó cuando el pedido fue entregado.
+            </p>
+          </div>
+        )}
         {loading && (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-gray-300" />
@@ -252,13 +266,13 @@ export default function ChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Escribí un mensaje..."
-            disabled={!connected}
+            placeholder={closed ? "Chat finalizado" : "Escribí un mensaje..."}
+            disabled={closed || !connected}
             className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition-colors focus:border-amber-400 focus:ring-2 focus:ring-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
           />
           <button
             onClick={sendMessage}
-            disabled={!connected || !input.trim()}
+            disabled={closed || !connected || !input.trim()}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Send className="h-4 w-4" />

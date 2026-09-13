@@ -169,6 +169,11 @@ async def close_session(session_id: int, db: AsyncSession = Depends(get_db), cur
 @router.websocket("/ws/{session_id}")
 async def websocket_chat(websocket: WebSocket, session_id: int, token: str = None):
     await websocket.accept()
+    async with AsyncSessionLocal() as db:
+        session = await db.get(ChatSession, session_id)
+        if not session or not session.is_open:
+            await websocket.close(code=4001, reason="Sesión cerrada")
+            return
     sender = MessageSender.customer
     waiter_id = None
     if token:
@@ -193,6 +198,10 @@ async def websocket_chat(websocket: WebSocket, session_id: int, token: str = Non
         while True:
             content = await websocket.receive_text()
             async with AsyncSessionLocal() as db:
+                session = await db.get(ChatSession, session_id)
+                if not session or not session.is_open:
+                    await websocket.close(code=4001, reason="Sesión cerrada")
+                    raise WebSocketDisconnect()
                 msg = ChatMessage(session_id=session_id, sender=sender, waiter_id=waiter_id, content=content)
                 db.add(msg)
                 await db.commit()
