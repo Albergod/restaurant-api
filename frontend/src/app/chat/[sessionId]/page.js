@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { apiFetch, connectWebSocket, API_URL } from "@/lib/api"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { apiFetch, getToken, API_URL } from "@/lib/api"
 import {
   MessageSquare,
   Send,
@@ -11,35 +11,76 @@ import {
   Loader2,
 } from "lucide-react"
 
+function mergeMessages(existing, incoming) {
+  const byId = new Map(existing.map((m) => [m.id, m]))
+  for (const m of incoming) {
+    if (m && m.id != null) byId.set(m.id, m)
+  }
+  return [...byId.values()].sort((a, b) => {
+    const ta = a.sent_at || a.timestamp || 0
+    const tb = b.sent_at || b.timestamp || 0
+    if (ta !== tb) return new Date(ta) - new Date(tb)
+    return (a.id || 0) - (b.id || 0)
+  })
+}
+
 export default function ChatPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const sessionId = params.sessionId
+  const sessionToken = searchParams.get("token") || ""
+
+  // Quién está mirando: el personal tiene JWT en localStorage; el cliente solo el token de sesión.
+  const isStaff = Boolean(getToken())
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState("")
   const [connected, setConnected] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const bottomRef = useRef(null)
-  const wsRef = useRef(null)
+  const currentWsRef = useRef(null)
+
+  // Guardamos el token de sesión para poder recargar el historial al reconectar.
+  const sessionTokenRef = useRef(sessionToken)
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const hint = sessionTokenRef.current ? `?token=${encodeURIComponent(sessionTokenRef.current)}` : ""
+      const session = await apiFetch(`/api/chat/sessions/${sessionId}${hint}`)
+      return session.messages || []
+    } catch (e) {
+      // Sin token = sin historial (el mensaje lo maneja la UI de estados).
+      return null
+    }
+  }, [sessionId])
+
+  useEffect(() => {
+    sessionTokenRef.current = sessionToken
+  }, [sessionToken])
 
   useEffect(() => {
     let cancelled = false
     let reconnectTimeout
     let currentWs
 
-    async function loadHistory() {
-      try {
-        const session = await apiFetch(`/api/chat/sessions/${sessionId}`)
-        if (!cancelled) setMessages(session.messages || [])
-      } catch (e) { /* no token = no history */ }
+    async function init() {
+      const history = await loadHistory()
+      if (cancelled) return
+      if (history) {
+        setMessages((prev) => mergeMessages(prev, history))
+        setLoading(false)
+      } else {
+        setLoading(false)
+      }
     }
 
     async function markAsRead() {
+      if (!isStaff) return
       try {
         await fetch(`${API_URL}/api/chat/sessions/${sessionId}/read`, {
           method: "PATCH",
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { Authorization: `Bearer ${getToken()}` },
         })
       } catch (e) { /* ignore */ }
     }
@@ -47,42 +88,59 @@ export default function ChatPage() {
     markAsRead()
 
     function connect() {
-      const ws = connectWebSocket(sessionId, (msg) => {
-        if (!cancelled) setMessages((prev) => [...prev, msg])
-      })
+      const wsToken = isStaff ? getToken() : (sessionTokenRef.current || undefined)
+      const url = wsToken
+        ? `${API_URL.replace(/^http/, "ws")}/api/chat/ws/${sessionId}?token=${encodeURIComponent(wsToken)}`
+        : `${API_URL.replace(/^http/, "ws")}/api/chat/ws/${sessionId}`
+      const ws = new WebSocket(url)
       currentWs = ws
-      wsRef.current = ws
-      ws.onopen = () => {
-        if (!cancelled) { setConnected(true); setLoading(false); setError(null) }
+      currentWsRef.current = ws
+      ws.onopen = async () => {
+        if (cancelled) return
+        setConnected(true)
+        setError(null)
+        // Al (re)conectar, recargar historial y fusionar: recupera mensajes perdidos tras un corte.
+        const history = await loadHistory()
+        if (!cancelled && history) {
+          setMessages((prev) => mergeMessages(prev, history))
+        }
+      }
+      ws.onmessage = (e) => {
+        if (cancelled) return
+        const msg = JSON.parse(e.data)
+        setMessages((prev) => mergeMessages(prev, [msg]))
       }
       ws.onclose = () => {
-        if (!cancelled) { setConnected(false); setLoading(false) }
+        if (cancelled) return
+        setConnected(false)
         reconnectTimeout = setTimeout(() => { if (!cancelled) connect() }, 3000)
       }
       ws.onerror = () => {
-        if (!cancelled) setError("Error de conexión")
+        if (cancelled) return
+        setError("Error de conexión")
         setLoading(false)
       }
+      return ws
     }
 
-    loadHistory()
-    connect()
+    init()
+    const ws = connect()
 
     return () => {
       cancelled = true
       clearTimeout(reconnectTimeout)
       if (currentWs) currentWs.close()
     }
-  }, [sessionId])
+  }, [sessionId, isStaff, loadHistory])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
   function sendMessage() {
-    if (!input.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+    if (!input.trim() || !currentWsRef.current || currentWsRef.current.readyState !== WebSocket.OPEN)
       return
-    wsRef.current.send(input.trim())
+    currentWsRef.current.send(input.trim())
     setInput("")
   }
 
@@ -92,6 +150,8 @@ export default function ChatPage() {
       sendMessage()
     }
   }
+
+  const isMine = (msg) => (isStaff ? msg.sender === "waiter" : msg.sender === "customer")
 
   if (error && !loading) {
     return (
@@ -152,42 +212,36 @@ export default function ChatPage() {
         )}
 
         <div className="space-y-3">
-          {messages.map((msg, idx) => {
-            const isMine =
-              msg.sender === "customer" ||
-              msg.sender === "client" ||
-              msg.role === "customer"
-            return (
+          {messages.map((msg) => (
+            <div
+              key={msg.id || `${msg.sender}-${msg.content}-${msg.sent_at}`}
+              className={`flex ${isMine(msg) ? "justify-end" : "justify-start"}`}
+            >
               <div
-                key={idx}
-                className={`flex ${isMine ? "justify-end" : "justify-start"}`}
+                className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
+                  isMine(msg)
+                    ? "rounded-br-sm bg-amber-500 text-white"
+                    : "rounded-bl-sm border border-gray-200 bg-white text-gray-700"
+                }`}
               >
-                <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
-                    isMine
-                      ? "rounded-br-sm bg-amber-500 text-white"
-                      : "rounded-bl-sm border border-gray-200 bg-white text-gray-700"
+                <p className="whitespace-pre-wrap break-words leading-relaxed">
+                  {msg.content}
+                </p>
+                <p
+                  className={`mt-1 text-[10px] ${
+                    isMine(msg) ? "text-white/70" : "text-gray-400"
                   }`}
                 >
-                  <p className="whitespace-pre-wrap break-words leading-relaxed">
-                    {msg.content}
-                  </p>
-                  <p
-                    className={`mt-1 text-[10px] ${
-                      isMine ? "text-white/70" : "text-gray-400"
-                    }`}
-                  >
-                    {msg.sent_at || msg.timestamp
-                      ? new Date(msg.sent_at || msg.timestamp).toLocaleTimeString("es-AR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : ""}
-                  </p>
-                </div>
+                  {msg.sent_at || msg.timestamp
+                    ? new Date(msg.sent_at || msg.timestamp).toLocaleTimeString("es-AR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : ""}
+                </p>
               </div>
-            )
-          })}
+            </div>
+          ))}
         </div>
         <div ref={bottomRef} />
       </div>

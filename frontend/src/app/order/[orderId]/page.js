@@ -51,7 +51,7 @@ export default function OrderPage() {
     setOpeningChat(true)
     try {
       const session = await apiFetch(`/api/chat/sessions/${order.table_qr}`, { method: "POST" })
-      router.push(`/chat/${session.id}`)
+      router.push(`/chat/${session.id}?token=${encodeURIComponent(session.access_token)}`)
     } catch (e) {
       setError("Error al abrir el chat")
     } finally {

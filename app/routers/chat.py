@@ -1,15 +1,35 @@
 import asyncio
-from typing import List
+from datetime import timedelta
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, func
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db, AsyncSessionLocal
-from app.core.security import get_current_user, decode_token
+from app.core.security import get_current_user, get_current_user_optional, decode_token, create_access_token
 from app.models.models import ChatMessage, ChatSession, MessageSender, Table, UserRole
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
 active_connections: dict[int, list[WebSocket]] = {}
+
+
+def _chat_session_payload(session) -> dict:
+    """Serializa una sesión de chat con sus mensajes e incluye un token de lectura para el cliente."""
+    return {
+        "id": session.id,
+        "restaurant_id": session.restaurant_id,
+        "table_id": session.table_id,
+        "is_open": session.is_open,
+        "created_at": session.created_at,
+        "access_token": create_access_token(
+            {"sub": str(session.id), "scope": "chat:read", "typ": "chat_session"},
+            expires_delta=timedelta(hours=24),
+        ),
+        "messages": [
+            {"id": m.id, "sender": m.sender.value, "content": m.content, "sent_at": m.sent_at, "is_read": m.is_read}
+            for m in session.messages
+        ],
+    }
 
 @router.post("/sessions/{table_qr}", response_model=dict, status_code=201)
 async def open_chat_session(table_qr: str, db: AsyncSession = Depends(get_db)):
@@ -20,13 +40,13 @@ async def open_chat_session(table_qr: str, db: AsyncSession = Depends(get_db)):
     existing = await db.execute(select(ChatSession).where(ChatSession.table_id == table.id, ChatSession.is_open == True).options(selectinload(ChatSession.messages)))
     session = existing.scalar_one_or_none()
     if session:
-        return {"id": session.id, "restaurant_id": session.restaurant_id, "table_id": session.table_id, "is_open": session.is_open, "created_at": session.created_at, "messages": [{"id": m.id, "sender": m.sender.value, "content": m.content, "sent_at": m.sent_at, "is_read": m.is_read} for m in session.messages]}
+        return _chat_session_payload(session)
     session = ChatSession(restaurant_id=table.restaurant_id, table_id=table.id)
     db.add(session)
     await db.commit()
     result = await db.execute(select(ChatSession).where(ChatSession.id == session.id).options(selectinload(ChatSession.messages)))
     s = result.scalar_one()
-    return {"id": s.id, "restaurant_id": s.restaurant_id, "table_id": s.table_id, "is_open": s.is_open, "created_at": s.created_at, "messages": [{"id": m.id, "sender": m.sender.value, "content": m.content, "sent_at": m.sent_at, "is_read": m.is_read} for m in s.messages]}
+    return _chat_session_payload(s)
 
 @router.get("/sessions/active", response_model=List[dict])
 async def list_active_sessions(db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -84,14 +104,33 @@ async def list_active_sessions(db: AsyncSession = Depends(get_db), current_user:
     ]
 
 @router.get("/sessions/{session_id}", response_model=dict)
-async def get_session(session_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    query = select(ChatSession).where(ChatSession.id == session_id).options(selectinload(ChatSession.messages))
-    if current_user["role"] != UserRole.superadmin.value:
-        query = query.where(ChatSession.restaurant_id == current_user["restaurant_id"])
-    session = (await db.execute(query)).scalar_one_or_none()
+async def get_session(
+    session_id: int,
+    token: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional),
+):
+    if current_user:
+        query = select(ChatSession).where(ChatSession.id == session_id).options(selectinload(ChatSession.messages))
+        if current_user["role"] != UserRole.superadmin.value:
+            query = query.where(ChatSession.restaurant_id == current_user["restaurant_id"])
+        session = (await db.execute(query)).scalar_one_or_none()
+    else:
+        if not token:
+            raise HTTPException(status_code=401, detail="Se requiere autenticación")
+        try:
+            payload = decode_token(token)
+        except HTTPException:
+            raise HTTPException(status_code=401, detail="Token de chat inválido o expirado")
+        if payload.get("typ") != "chat_session" or payload.get("scope") != "chat:read":
+            raise HTTPException(status_code=403, detail="Token de chat no válido")
+        if int(payload["sub"]) != session_id:
+            raise HTTPException(status_code=403, detail="Token no pertenece a esta sesión")
+        query = select(ChatSession).where(ChatSession.id == session_id, ChatSession.is_open == True).options(selectinload(ChatSession.messages))
+        session = (await db.execute(query)).scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Sesión no encontrada")
-    return {"id": session.id, "restaurant_id": session.restaurant_id, "table_id": session.table_id, "is_open": session.is_open, "created_at": session.created_at, "messages": [{"id": m.id, "sender": m.sender.value, "content": m.content, "sent_at": m.sent_at, "is_read": m.is_read} for m in session.messages]}
+    return _chat_session_payload(session)
 
 @router.post("/sessions/{session_id}/messages", response_model=dict)
 async def send_message_rest(session_id: int, data: dict, db: AsyncSession = Depends(get_db)):
@@ -135,11 +174,18 @@ async def websocket_chat(websocket: WebSocket, session_id: int, token: str = Non
     if token:
         try:
             payload = decode_token(token)
-            sender = MessageSender.waiter
-            waiter_id = int(payload["sub"])
         except Exception:
             await websocket.close(code=1008, reason="Token inválido")
             return
+        if payload.get("typ") == "chat_session":
+            # Token de sesión de chat (cliente): solo autentica la lectura, el emisor sigue siendo el cliente.
+            if int(payload["sub"]) != session_id:
+                await websocket.close(code=1008, reason="Token no pertenece a esta sesión")
+                return
+            sender = MessageSender.customer
+        else:
+            sender = MessageSender.waiter
+            waiter_id = int(payload["sub"])
     if session_id not in active_connections:
         active_connections[session_id] = []
     active_connections[session_id].append(websocket)
@@ -150,7 +196,8 @@ async def websocket_chat(websocket: WebSocket, session_id: int, token: str = Non
                 msg = ChatMessage(session_id=session_id, sender=sender, waiter_id=waiter_id, content=content)
                 db.add(msg)
                 await db.commit()
-            broadcast_data = {"sender": sender.value, "content": content}
+                await db.refresh(msg)
+            broadcast_data = {"id": msg.id, "sender": sender.value, "content": content, "sent_at": msg.sent_at.isoformat()}
             peers = list(active_connections.get(session_id, []))
             results = await asyncio.gather(
                 *[ws.send_json(broadcast_data) for ws in peers],

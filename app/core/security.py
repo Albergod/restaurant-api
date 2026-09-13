@@ -8,6 +8,7 @@ from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -34,3 +35,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         "role": payload.get("role"),
         "restaurant_id": payload.get("restaurant_id"),
     }
+
+async def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme_optional)):
+    if not token:
+        return None
+    try:
+        return await get_current_user(token)
+    except HTTPException:
+        return None
