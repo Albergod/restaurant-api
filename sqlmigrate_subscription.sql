@@ -38,4 +38,12 @@ CREATE INDEX IF NOT EXISTS ix_subscription_payments_restaurant_id
 CREATE UNIQUE INDEX IF NOT EXISTS ix_subscription_payments_provider_payment_id
     ON subscription_payments (provider_payment_id);
 
+-- 3. Restaurantes existentes sin trial: se les otorga prueba de 14 días
+-- desde la migración para no bloquearlos de golpe (registered no opera).
+-- En instalaciones frescas no hay filas y esto no hace nada.
+UPDATE restaurants
+SET trial_started_at = CURRENT_TIMESTAMP,
+    trial_ends_at = CURRENT_TIMESTAMP + INTERVAL '14 days'
+WHERE trial_started_at IS NULL AND trial_ends_at IS NULL;
+
 COMMIT;
