@@ -6,8 +6,8 @@ import Link from "next/link"
 import { API_URL } from "@/lib/api"
 import { ChefHat, ArrowRight, ArrowLeft, Loader2, AlertCircle, LayoutDashboard } from "lucide-react"
 
-const DEMO_EMAIL = process.env.NEXT_PUBLIC_DEMO_EMAIL || "admin@restaurant.com"
-const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD || "admin123"
+const DEMO_EMAIL = process.env.NEXT_PUBLIC_DEMO_EMAIL || "demo@restaurant.com"
+const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD || "demo1234"
 
 export default function DemoPage() {
   const router = useRouter()
