@@ -1,4 +1,5 @@
 from pathlib import Path
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -10,7 +11,7 @@ from app.models.models import (
     ChatMessage, ChatSession, LoyaltyPoints, Order, OrderItem, OrderStatusHistory,
     User, UserRole, Category, Product, Table, Restaurant,
 )
-from app.routers import auth, menu, orders, tables, chat, loyalty, users, upload, restaurants
+from app.routers import auth, menu, orders, tables, chat, loyalty, users, upload, restaurants, billing
 
 app = FastAPI(title="Restaurant API", description="Plataforma de gestión y comunicación para restaurantes (Multi-tenant SaaS)", version="2.0.0")
 
@@ -25,6 +26,7 @@ app.include_router(chat.router)
 app.include_router(loyalty.router)
 app.include_router(users.router)
 app.include_router(upload.router)
+app.include_router(billing.router)
 
 uploads_dir = Path(__file__).resolve().parent.parent / "uploads"
 uploads_dir.mkdir(exist_ok=True)
@@ -152,6 +154,20 @@ async def startup():
         await conn.run_sync(Base.metadata.create_all)
     if settings.SEED_DEFAULT_USERS:
         await _seed_default_data()
+    asyncio.create_task(_expiry_cron())
+
+
+async def _expiry_cron():
+    """Suspende suscripciones vencidas cada hora (idempotente)."""
+    from app.routers.billing import expire_subscriptions
+    while True:
+        try:
+            suspended = await expire_subscriptions()
+            if suspended:
+                print(f"⏸️ Suscripciones suspendidas por mora: {suspended}")
+        except Exception as e:
+            print(f"⚠️ Cron de expiración falló (reintenta en 1h): {e}")
+        await asyncio.sleep(3600)
 
 @app.get("/", tags=["Root"])
 async def root():

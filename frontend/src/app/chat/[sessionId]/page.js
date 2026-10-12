@@ -64,6 +64,21 @@ export default function ChatPage() {
     let cancelled = false
     let reconnectTimeout
     let currentWs
+    let reconnectAttempts = 0
+    const MAX_RECONNECT_DELAY_MS = 60000
+
+    function scheduleReconnect() {
+      if (cancelled) return
+      // No reconectar con la pestaña oculta ni si la sesión terminó.
+      if (document.hidden) {
+        reconnectTimeout = setTimeout(scheduleReconnect, 10000)
+        return
+      }
+      // Backoff exponencial 3s → 6s → 12s … tope 60s.
+      const delay = Math.min(3000 * 2 ** reconnectAttempts, MAX_RECONNECT_DELAY_MS)
+      reconnectAttempts += 1
+      reconnectTimeout = setTimeout(() => { if (!cancelled) connect() }, delay)
+    }
 
     async function init() {
       const history = await loadHistory()
@@ -98,6 +113,7 @@ export default function ChatPage() {
       currentWsRef.current = ws
       ws.onopen = async () => {
         if (cancelled) return
+        reconnectAttempts = 0
         setConnected(true)
         setError(null)
         // Al (re)conectar, recargar historial y fusionar: recupera mensajes perdidos tras un corte.
@@ -119,7 +135,7 @@ export default function ChatPage() {
           setClosed(true)
           return
         }
-        reconnectTimeout = setTimeout(() => { if (!cancelled) connect() }, 3000)
+        scheduleReconnect()
       }
       ws.onerror = () => {
         if (cancelled) return

@@ -38,6 +38,20 @@ export default function LoginPage() {
       const data = await res.json()
       localStorage.setItem("token", data.access_token)
       localStorage.setItem("role", data.role)
+      // Un admin con suscripción vencida va directo a pagar (sus datos intactos).
+      if (data.role === "admin") {
+        try {
+          const st = await fetch(`${API_URL}/api/billing/status`, {
+            headers: { Authorization: `Bearer ${data.access_token}` },
+          }).then((r) => (r.ok ? r.json() : null))
+          if (st && ["expired", "suspended", "cancelled"].includes(st.display_state)) {
+            router.replace("/admin/billing")
+            return
+          }
+        } catch {
+          // Sin estado, se sigue al panel normal.
+        }
+      }
       const destinations = {
         admin: "/admin",
         waiter: "/waiter",
@@ -148,6 +162,12 @@ export default function LoginPage() {
         <div className="mt-8 text-center animate-fade-in" style={{ animationDelay: '300ms' }}>
           <p className="text-sm font-medium text-gray-500 bg-black/40 inline-flex px-4 py-2 rounded-full border border-white/5 backdrop-blur-sm">
             Clientes: Por favor, escanea el código QR de tu mesa
+          </p>
+          <p className="mt-3 text-sm text-gray-400">
+            ¿Tienes un restaurante?{" "}
+            <a href="/register" className="text-amber-400 font-semibold hover:text-amber-300">
+              Créalo gratis aquí
+            </a>
           </p>
         </div>
       </div>

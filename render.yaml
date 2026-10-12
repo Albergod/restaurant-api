@@ -16,7 +16,7 @@ services:
       - key: FRONTEND_URL
         sync: false
       - key: SEED_DEFAULT_USERS
-        value: true
+        value: false
       - key: ALLOW_PUBLIC_STAFF_REGISTRATION
         value: false
       - key: DEFAULT_ADMIN_PASSWORD

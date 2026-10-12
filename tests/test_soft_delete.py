@@ -8,8 +8,8 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_desactivar_categoria_no_la_borra_de_bd(client, created_restaurant):
-    headers = created_restaurant["admin_headers"]
+async def test_desactivar_categoria_no_la_borra_de_bd(client, active_restaurant):
+    headers = active_restaurant["admin_headers"]
 
     cat = await client.post("/api/menu/categories", headers=headers, json={"name": "Postres"})
     cat_id = cat.json()["id"]
@@ -29,8 +29,8 @@ async def test_desactivar_categoria_no_la_borra_de_bd(client, created_restaurant
 
 
 @pytest.mark.asyncio
-async def test_categoria_desactivada_no_aparece_en_menu_publico(client, created_restaurant):
-    headers = created_restaurant["admin_headers"]
+async def test_categoria_desactivada_no_aparece_en_menu_publico(client, active_restaurant):
+    headers = active_restaurant["admin_headers"]
 
     cat = await client.post("/api/menu/categories", headers=headers, json={"name": "Temporal"})
     cat_id = cat.json()["id"]
@@ -89,8 +89,8 @@ async def test_reactivar_restaurante(client, superadmin_token):
 
 
 @pytest.mark.asyncio
-async def test_producto_no_aparece_si_is_available_false(client, created_restaurant):
-    headers = created_restaurant["admin_headers"]
+async def test_producto_no_aparece_si_is_available_false(client, active_restaurant):
+    headers = active_restaurant["admin_headers"]
 
     cat = await client.post("/api/menu/categories", headers=headers, json={"name": "Cat"})
     cat_id = cat.json()["id"]

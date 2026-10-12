@@ -6,8 +6,9 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.deps import require_active_subscription, subscription_block_reason
 from app.models.models import (
-    ChatMessage, ChatSession, MessageSender, Order, OrderItem, OrderStatus, OrderStatusHistory, Product, Table, UserRole,
+    ChatMessage, ChatSession, MessageSender, Order, OrderItem, OrderStatus, OrderStatusHistory, Product, Restaurant, Table, UserRole,
 )
 from app.schemas.schemas import OrderCreate, OrderOut, OrderStatusUpdate, KitchenOrderOut
 
@@ -79,8 +80,14 @@ async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
     if not restaurant_id:
         restaurant_id = 1  # Fallback para compatibilidad con pedidos pickup antiguos
 
+    reason = subscription_block_reason(await db.get(Restaurant, restaurant_id))
+    if reason is not None:
+        raise HTTPException(status_code=402, detail=reason)
+
     if not data.items:
         raise HTTPException(status_code=400, detail="El pedido no tiene productos")
+    if len(data.items) > 20:
+        raise HTTPException(status_code=400, detail="Máximo 20 productos por pedido")
 
     order = Order(restaurant_id=restaurant_id, table_id=table_id, customer_name=data.customer_name, order_type=data.order_type, status=OrderStatus.pending, notes=data.notes)
     db.add(order)
@@ -109,7 +116,9 @@ async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
     return order
 
 @router.get("/", response_model=List[OrderOut])
-async def list_orders(status: Optional[OrderStatus] = None, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def list_orders(status: Optional[OrderStatus] = None, limit: int = 100, skip: int = 0, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    limit = max(1, min(limit, 500))
+    skip = max(0, skip)
     query = select(Order).options(selectinload(Order.items).selectinload(OrderItem.product)).order_by(Order.created_at.desc())
     if current_user["role"] != UserRole.superadmin.value:
         query = query.where(Order.restaurant_id == current_user["restaurant_id"])
@@ -118,20 +127,22 @@ async def list_orders(status: Optional[OrderStatus] = None, db: AsyncSession = D
     elif status:
         query = query.where(Order.status == status)
 
-    orders = (await db.execute(query)).scalars().all()
+    orders = (await db.execute(query.limit(limit).offset(skip))).scalars().all()
     await _attach_table_info_bulk(orders, db)
     return orders
 
 @router.get("/kitchen", response_model=List[KitchenOrderOut])
-async def kitchen_panel(db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def kitchen_panel(limit: int = 100, skip: int = 0, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
     allowed = [UserRole.kitchen.value, UserRole.waiter.value, UserRole.admin.value, UserRole.superadmin.value]
     if current_user["role"] not in allowed:
         raise HTTPException(status_code=403, detail="Acceso denegado")
+    limit = max(1, min(limit, 500))
+    skip = max(0, skip)
     query = select(Order).where(Order.status.in_([OrderStatus.confirmed, OrderStatus.preparing])).options(selectinload(Order.items).selectinload(OrderItem.product)).order_by(Order.created_at)
     if current_user["role"] != UserRole.superadmin.value:
         query = query.where(Order.restaurant_id == current_user["restaurant_id"])
     
-    orders = (await db.execute(query)).scalars().all()
+    orders = (await db.execute(query.limit(limit).offset(skip))).scalars().all()
     await _attach_table_info_bulk(orders, db)
     return orders
 
@@ -145,7 +156,7 @@ async def get_order(order_id: int, db: AsyncSession = Depends(get_db)):
     return order
 
 @router.patch("/{order_id}/status", response_model=OrderOut)
-async def update_order_status(order_id: int, data: OrderStatusUpdate, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def update_order_status(order_id: int, data: OrderStatusUpdate, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user), _: dict = Depends(require_active_subscription)):
     result = await db.execute(select(Order).where(Order.id == order_id).options(selectinload(Order.items).selectinload(OrderItem.product)))
     order = result.scalar_one_or_none()
     if not order:
@@ -179,7 +190,7 @@ async def update_order_status(order_id: int, data: OrderStatusUpdate, db: AsyncS
     return order
 
 @router.delete("/{order_id}", status_code=204)
-async def delete_order(order_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def delete_order(order_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user), _: dict = Depends(require_active_subscription)):
     if current_user["role"] not in [UserRole.waiter.value, UserRole.admin.value, UserRole.superadmin.value]:
         raise HTTPException(status_code=403, detail="Acceso denegado")
     result = await db.execute(select(Order).where(Order.id == order_id).options(selectinload(Order.items), selectinload(Order.status_history)))

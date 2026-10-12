@@ -30,6 +30,28 @@ class MessageSender(str, enum.Enum):
     customer = "customer"
     waiter = "waiter"
 
+class SubscriptionPlan(str, enum.Enum):
+    trial = "trial"
+    basic = "basic"
+    pro = "pro"
+
+class SubscriptionStatus(str, enum.Enum):
+    trialing = "trialing"
+    active = "active"
+    past_due = "past_due"
+    suspended = "suspended"
+    cancelled = "cancelled"
+
+class BillingCycle(str, enum.Enum):
+    monthly = "monthly"      # 30 días
+    biweekly = "biweekly"    # 15 días
+
+# Días por ciclo de facturación (prepago manual: cada pago extiende el periodo).
+CYCLE_DAYS = {
+    BillingCycle.monthly.value: 30,
+    BillingCycle.biweekly.value: 15,
+}
+
 class Restaurant(Base):
     __tablename__ = "restaurants"
     id = Column(Integer, primary_key=True, index=True)
@@ -37,6 +59,12 @@ class Restaurant(Base):
     slug = Column(String(120), unique=True, index=True, nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # ── Suscripción SaaS (prepago) ──
+    plan = Column(Enum(SubscriptionPlan), default=SubscriptionPlan.trial, nullable=False)
+    subscription_status = Column(Enum(SubscriptionStatus), default=SubscriptionStatus.trialing, nullable=False)
+    trial_started_at = Column(DateTime, nullable=True)
+    trial_ends_at = Column(DateTime, nullable=True)
+    current_period_end = Column(DateTime, nullable=True)
     users = relationship("User", back_populates="restaurant")
     tables = relationship("Table", back_populates="restaurant")
     categories = relationship("Category", back_populates="restaurant")
@@ -44,6 +72,7 @@ class Restaurant(Base):
     orders = relationship("Order", back_populates="restaurant")
     chat_sessions = relationship("ChatSession", back_populates="restaurant")
     loyalty_points = relationship("LoyaltyPoints", back_populates="restaurant")
+    subscription_payments = relationship("SubscriptionPayment", back_populates="restaurant")
 
 class User(Base):
     __tablename__ = "users"
@@ -181,3 +210,21 @@ class LoyaltyPoints(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     restaurant = relationship("Restaurant", back_populates="loyalty_points")
     user = relationship("User", back_populates="loyalty")
+
+class SubscriptionPayment(Base):
+    """Pagos de suscripción SaaS (idempotentes por provider_payment_id).
+
+    Cada pago aprobado extiende current_period_end del restaurante de forma
+    aditiva: max(ahora, periodo_actual) + días del ciclo.
+    """
+    __tablename__ = "subscription_payments"
+    id = Column(Integer, primary_key=True, index=True)
+    restaurant_id = Column(Integer, ForeignKey("restaurants.id"), nullable=True, index=True)
+    provider = Column(String(20), nullable=False)  # wompi | mercadopago
+    provider_payment_id = Column(String(120), unique=True, index=True, nullable=False)
+    plan = Column(String(20), nullable=False)
+    cycle = Column(String(20), nullable=False)
+    amount_cents = Column(Integer, nullable=False)
+    status = Column(String(20), default="pending", nullable=False)  # pending|approved|rejected
+    created_at = Column(DateTime, default=datetime.utcnow)
+    restaurant = relationship("Restaurant", back_populates="subscription_payments")

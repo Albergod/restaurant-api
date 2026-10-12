@@ -23,6 +23,8 @@ export default function OrderPage() {
     let failCount = 0
 
     async function fetchOrder() {
+      // Pausa en background y cachea el número de mesa (evita 1 request extra por tick).
+      if (document.hidden) return
       try {
         const data = await apiFetch(`/api/orders/${orderId}`)
         if (cancelled) return
@@ -30,11 +32,13 @@ export default function OrderPage() {
         setError(null)
         failCount = 0
         if (data.status === "delivered" || data.status === "cancelled") clearInterval(interval)
-        if (data.table_qr) {
+        setTableNumber((prev) => {
+          if (prev != null || !data.table_qr) return prev
           apiFetch(`/api/menu/table-by-qr/${data.table_qr}`)
-            .then(t => setTableNumber(t.number))
+            .then((t) => setTableNumber(t.number))
             .catch(() => {})
-        }
+          return prev
+        })
       } catch (e) {
         failCount++
         if (failCount >= 3 && !cancelled) setError("Error al cargar el pedido")
@@ -43,7 +47,7 @@ export default function OrderPage() {
       }
     }
     fetchOrder()
-    interval = setInterval(fetchOrder, 8000)
+    interval = setInterval(fetchOrder, 15000)
     return () => { cancelled = true; clearInterval(interval) }
   }, [orderId])
 

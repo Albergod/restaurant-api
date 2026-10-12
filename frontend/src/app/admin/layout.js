@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { getToken, getRole, logout } from "@/lib/api"
+import TrialBanner from "@/components/TrialBanner"
 import {
   LayoutDashboard,
   Users,
@@ -12,6 +13,7 @@ import {
   Menu,
   User as UserIcon,
   X,
+  CreditCard,
 } from "lucide-react"
 
 const NAV_ITEMS = [
@@ -19,6 +21,7 @@ const NAV_ITEMS = [
   { href: "/admin/users", label: "Usuarios", icon: Users },
   { href: "/admin/menu", label: "Menú", icon: ShoppingBag },
   { href: "/admin/tables", label: "Mesas", icon: ChefHat },
+  { href: "/admin/billing", label: "Facturación", icon: CreditCard },
 ]
 
 export default function AdminLayout({ children }) {
@@ -125,6 +128,7 @@ export default function AdminLayout({ children }) {
         </header>
 
         <main className="flex-1">
+          <TrialBanner />
           {children}
         </main>
       </div>

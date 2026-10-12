@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 
 from app.core.config import settings
 from app.core.security import get_current_user
+from app.deps import require_active_subscription
 from app.models.models import UserRole
 
 router = APIRouter(prefix="/api/uploads", tags=["Subidas"])
@@ -108,6 +109,7 @@ async def _upload_to_cloudinary(file: UploadFile, content: bytes) -> str:
 async def upload_image(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
+    _: dict = Depends(require_active_subscription),
 ):
     if current_user["role"] not in [UserRole.admin.value, UserRole.superadmin.value]:
         raise HTTPException(status_code=403, detail="Solo administradores")

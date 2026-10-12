@@ -7,13 +7,30 @@ from sqlalchemy import select, update, func
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db, AsyncSessionLocal
 from app.core.security import get_current_user, get_current_user_optional, decode_token, create_access_token
-from app.models.models import ChatMessage, ChatSession, MessageSender, Table, UserRole
+from app.deps import subscription_block_reason
+from app.models.models import ChatMessage, ChatSession, MessageSender, Restaurant, Table, UserRole
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
 active_connections: dict[int, list[WebSocket]] = {}
 
 
-def _chat_session_payload(session) -> dict:
+def _serialize_message(m) -> dict:
+    return {"id": m.id, "sender": m.sender.value, "content": m.content, "sent_at": m.sent_at, "is_read": m.is_read}
+
+
+async def _recent_messages(db: AsyncSession, session_id: int, limit: int = 100) -> list:
+    """Últimos N mensajes en orden cronológico (evita traer historiales gigantes)."""
+    limit = max(1, min(limit, 500))
+    result = await db.execute(
+        select(ChatMessage)
+        .where(ChatMessage.session_id == session_id)
+        .order_by(ChatMessage.sent_at.desc(), ChatMessage.id.desc())
+        .limit(limit)
+    )
+    return [_serialize_message(m) for m in reversed(result.scalars().all())]
+
+
+def _chat_session_payload(session, messages: list | None = None) -> dict:
     """Serializa una sesión de chat con sus mensajes e incluye un token de lectura para el cliente."""
     return {
         "id": session.id,
@@ -25,10 +42,7 @@ def _chat_session_payload(session) -> dict:
             {"sub": str(session.id), "scope": "chat:read", "typ": "chat_session"},
             expires_delta=timedelta(hours=24),
         ),
-        "messages": [
-            {"id": m.id, "sender": m.sender.value, "content": m.content, "sent_at": m.sent_at, "is_read": m.is_read}
-            for m in session.messages
-        ],
+        "messages": messages if messages is not None else [_serialize_message(m) for m in session.messages],
     }
 
 @router.post("/sessions/{table_qr}", response_model=dict, status_code=201)
@@ -37,10 +51,10 @@ async def open_chat_session(table_qr: str, db: AsyncSession = Depends(get_db)):
     table = table_result.scalar_one_or_none()
     if not table:
         raise HTTPException(status_code=404, detail="Mesa no encontrada")
-    existing = await db.execute(select(ChatSession).where(ChatSession.table_id == table.id, ChatSession.is_open == True).options(selectinload(ChatSession.messages)))
+    existing = await db.execute(select(ChatSession).where(ChatSession.table_id == table.id, ChatSession.is_open == True))
     session = existing.scalar_one_or_none()
     if session:
-        return _chat_session_payload(session)
+        return _chat_session_payload(session, await _recent_messages(db, session.id))
     session = ChatSession(restaurant_id=table.restaurant_id, table_id=table.id)
     db.add(session)
     await db.commit()
@@ -107,11 +121,12 @@ async def list_active_sessions(db: AsyncSession = Depends(get_db), current_user:
 async def get_session(
     session_id: int,
     token: Optional[str] = None,
+    limit: int = 100,
     db: AsyncSession = Depends(get_db),
     current_user: Optional[dict] = Depends(get_current_user_optional),
 ):
     if current_user:
-        query = select(ChatSession).where(ChatSession.id == session_id).options(selectinload(ChatSession.messages))
+        query = select(ChatSession).where(ChatSession.id == session_id)
         if current_user["role"] != UserRole.superadmin.value:
             query = query.where(ChatSession.restaurant_id == current_user["restaurant_id"])
         session = (await db.execute(query)).scalar_one_or_none()
@@ -126,11 +141,11 @@ async def get_session(
             raise HTTPException(status_code=403, detail="Token de chat no válido")
         if int(payload["sub"]) != session_id:
             raise HTTPException(status_code=403, detail="Token no pertenece a esta sesión")
-        query = select(ChatSession).where(ChatSession.id == session_id, ChatSession.is_open == True).options(selectinload(ChatSession.messages))
+        query = select(ChatSession).where(ChatSession.id == session_id, ChatSession.is_open == True)
         session = (await db.execute(query)).scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Sesión no encontrada")
-    return _chat_session_payload(session)
+    return _chat_session_payload(session, await _recent_messages(db, session.id, limit))
 
 @router.post("/sessions/{session_id}/messages", response_model=dict)
 async def send_message_rest(session_id: int, data: dict, db: AsyncSession = Depends(get_db)):
@@ -140,6 +155,9 @@ async def send_message_rest(session_id: int, data: dict, db: AsyncSession = Depe
     session = result.scalar_one_or_none()
     if not session or not session.is_open:
         raise HTTPException(status_code=404, detail="Sesión no encontrada o cerrada")
+    reason = subscription_block_reason(await db.get(Restaurant, session.restaurant_id))
+    if reason is not None:
+        raise HTTPException(status_code=402, detail=reason)
     msg = ChatMessage(session_id=session_id, sender=sender, content=data["content"])
     db.add(msg)
     await db.commit()

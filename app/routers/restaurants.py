@@ -1,14 +1,101 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
+import re
 import uuid
 from app.core.database import get_db
 from app.core.config import settings
-from app.core.security import get_current_user, hash_password
+from app.core.security import get_current_user, hash_password, create_access_token
 from app.models.models import Restaurant, User, UserRole, Order, OrderStatus, OrderItem, OrderStatusHistory, Category, Product, Table, ChatSession, ChatMessage, LoyaltyPoints
-from app.schemas.schemas import RestaurantCreate, RestaurantUpdate
+from app.schemas.schemas import RestaurantCreate, RestaurantUpdate, RestaurantSignup
 
 router = APIRouter(prefix="/api/restaurants", tags=["Restaurantes"])
+
+SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+@router.post("/signup", status_code=201)
+async def signup_restaurant(data: RestaurantSignup, db: AsyncSession = Depends(get_db)):
+    """Alta self-service: crea restaurante en estado registered + admin.
+
+    No activa el trial (eso pasa al pulsar «Activar prueba»). Honeypot
+    anti-bots: el campo website debe venir vacío.
+    """
+    if (data.website or "").strip():
+        raise HTTPException(status_code=400, detail="Solicitud inválida")
+    slug = data.slug.strip().lower()
+    if not SLUG_RE.match(slug):
+        raise HTTPException(status_code=400, detail="Slug inválido (minúsculas, números y guiones)")
+    if len(data.admin_password) < 8:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres")
+    existing = await db.execute(select(Restaurant).where(Restaurant.slug == slug))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Ese nombre corto ya está en uso")
+    email_taken = await db.execute(select(User).where(User.email == data.admin_email))
+    if email_taken.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Ese correo ya está registrado")
+
+    restaurant = Restaurant(name=data.name.strip(), slug=slug)
+    db.add(restaurant)
+    await db.flush()
+    admin_user = User(
+        name=data.admin_name.strip() or "Administrador",
+        email=data.admin_email,
+        hashed_password=hash_password(data.admin_password),
+        role=UserRole.admin,
+        restaurant_id=restaurant.id,
+    )
+    db.add(admin_user)
+    await db.commit()
+    await db.refresh(restaurant)
+    token = create_access_token({"sub": str(admin_user.id), "role": admin_user.role.value, "restaurant_id": restaurant.id})
+    return {
+        "id": restaurant.id,
+        "name": restaurant.name,
+        "slug": restaurant.slug,
+        "plan": restaurant.plan.value,
+        "subscription_status": restaurant.subscription_status.value,
+        "access_token": token,
+        "token_type": "bearer",
+        "role": admin_user.role.value,
+        "restaurant_id": restaurant.id,
+    }
+
+@router.get("/demo/overview")
+async def demo_overview(db: AsyncSession = Depends(get_db)):
+    """Demo pública (sin login): escaparate del restaurante 'demo' con datos ficticios."""
+    from sqlalchemy.orm import selectinload
+    result = await db.execute(
+        select(Restaurant).where(Restaurant.slug == "demo", Restaurant.is_active == True)
+    )
+    demo = result.scalar_one_or_none()
+    if not demo:
+        raise HTTPException(status_code=404, detail="Demo no disponible por ahora")
+    cats = await db.execute(
+        select(Category)
+        .where(Category.restaurant_id == demo.id, Category.is_active == True)
+        .options(selectinload(Category.products))
+        .order_by(Category.sort_order)
+    )
+    categories = cats.scalars().all()
+    table = await db.execute(
+        select(Table).where(Table.restaurant_id == demo.id).order_by(Table.number).limit(1)
+    )
+    table = table.scalar_one_or_none()
+    return {
+        "restaurant": {"id": demo.id, "name": demo.name, "slug": demo.slug},
+        "table_qr": table.qr_code if table else None,
+        "categories": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "products": [
+                    {"id": p.id, "name": p.name, "description": p.description, "price": p.price, "image_url": p.image_url}
+                    for p in c.products if p.is_available
+                ],
+            }
+            for c in categories
+        ],
+    }
 
 @router.post("/", status_code=201)
 async def create_restaurant(data: RestaurantCreate, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -41,6 +128,11 @@ async def create_restaurant(data: RestaurantCreate, db: AsyncSession = Depends(g
         "name": restaurant.name,
         "slug": restaurant.slug,
         "is_active": restaurant.is_active,
+        "plan": restaurant.plan.value if restaurant.plan else "trial",
+        "subscription_status": restaurant.subscription_status.value if restaurant.subscription_status else "trialing",
+        "trial_started_at": None,
+        "trial_ends_at": restaurant.trial_ends_at.isoformat() if restaurant.trial_ends_at else None,
+        "current_period_end": restaurant.current_period_end.isoformat() if restaurant.current_period_end else None,
         "admin_email": admin_email,
         "admin_password": admin_password,
         "waiter_email": waiter_email,
@@ -119,6 +211,41 @@ async def reactivate_restaurant(restaurant_id: int, db: AsyncSession = Depends(g
     await db.commit()
     await db.refresh(restaurant)
     return {"id": restaurant.id, "name": restaurant.name, "slug": restaurant.slug, "is_active": restaurant.is_active}
+
+
+TRIAL_DAYS = 14
+
+@router.post("/{restaurant_id}/trial", status_code=201)
+async def start_trial(restaurant_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """Activa la prueba gratis de 14 días (una sola vez).
+
+    El contador arranca al pulsar «Activar prueba», antes del onboarding:
+    sin requisito de productos (se cargan después, dentro del trial).
+    """
+    from datetime import datetime, timedelta
+    from app.models.models import SubscriptionStatus
+
+    restaurant = (await db.execute(select(Restaurant).where(Restaurant.id == restaurant_id))).scalar_one_or_none()
+    if not restaurant:
+        raise HTTPException(status_code=404, detail="Restaurante no encontrado")
+    is_owner = current_user["role"] == UserRole.admin.value and current_user.get("restaurant_id") == restaurant.id
+    if current_user["role"] != UserRole.superadmin.value and not is_owner:
+        raise HTTPException(status_code=403, detail="Solo el administrador del restaurante")
+    if restaurant.trial_started_at is not None:
+        raise HTTPException(status_code=409, detail="La prueba gratis ya fue usada en este restaurante")
+    now = datetime.utcnow()
+    restaurant.trial_started_at = now
+    restaurant.trial_ends_at = now + timedelta(days=TRIAL_DAYS)
+    restaurant.subscription_status = SubscriptionStatus.trialing
+    await db.commit()
+    await db.refresh(restaurant)
+    return {
+        "id": restaurant.id,
+        "plan": restaurant.plan.value,
+        "subscription_status": restaurant.subscription_status.value,
+        "trial_started_at": restaurant.trial_started_at.isoformat(),
+        "trial_ends_at": restaurant.trial_ends_at.isoformat(),
+    }
 
 
 @router.patch("/{restaurant_id}")

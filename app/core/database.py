@@ -18,7 +18,17 @@ def _async_database_url():
     return url.set(query=query)
 
 
-engine = create_async_engine(_async_database_url(), echo=False, pool_pre_ping=True)
+engine = create_async_engine(
+    _async_database_url(),
+    echo=False,
+    pool_pre_ping=True,
+    # Pool chico: Render free + Neon tienen pocas conexiones; los polls del
+    # frontend abren sesiones concurrentes que agotarían el default (5+10).
+    pool_size=3,
+    max_overflow=2,
+    pool_timeout=10,
+    pool_recycle=300,
+)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 

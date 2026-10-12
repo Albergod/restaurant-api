@@ -6,7 +6,8 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import get_current_user, decode_token
-from app.models.models import Category, OrderItem, Product, Table, UserRole
+from app.deps import require_active_subscription, subscription_block_reason
+from app.models.models import Category, OrderItem, Product, Restaurant, Table, UserRole
 from app.routers.upload import delete_image
 from app.schemas.schemas import (
     CategoryCreate, CategoryOut, CategoryWithProducts,
@@ -52,6 +53,11 @@ async def get_full_menu(
     current_user: Optional[dict] = Depends(get_current_user_optional),
 ):
     restaurant_id = await _resolve_restaurant_id(table_qr, restaurant_id, current_user, db)
+
+    if restaurant_id is not None:
+        reason = subscription_block_reason(await db.get(Restaurant, restaurant_id))
+        if reason is not None:
+            raise HTTPException(status_code=402, detail=reason)
 
     query = select(Category).where(Category.is_active == True).options(selectinload(Category.products)).order_by(Category.sort_order)
     if restaurant_id is not None:
@@ -100,7 +106,7 @@ async def get_table_by_qr(qr_code: str, db: AsyncSession = Depends(get_db)):
     return table
 
 @router.post("/categories", response_model=CategoryOut, status_code=201)
-async def create_category(data: CategoryCreate, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def create_category(data: CategoryCreate, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user), _: dict = Depends(require_active_subscription)):
     if current_user["role"] not in [UserRole.admin.value, UserRole.superadmin.value]:
         raise HTTPException(status_code=403, detail="Solo administradores")
     cat = Category(restaurant_id=current_user["restaurant_id"], **data.model_dump())
@@ -110,7 +116,7 @@ async def create_category(data: CategoryCreate, db: AsyncSession = Depends(get_d
     return cat
 
 @router.delete("/categories/{category_id}", status_code=204)
-async def delete_category(category_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def delete_category(category_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user), _: dict = Depends(require_active_subscription)):
     if current_user["role"] not in [UserRole.admin.value, UserRole.superadmin.value]:
         raise HTTPException(status_code=403, detail="Solo administradores")
     result = await db.execute(select(Category).where(Category.id == category_id, Category.restaurant_id == current_user["restaurant_id"]))
@@ -121,7 +127,7 @@ async def delete_category(category_id: int, db: AsyncSession = Depends(get_db), 
     await db.commit()
 
 @router.post("/products", response_model=ProductOut, status_code=201)
-async def create_product(data: ProductCreate, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def create_product(data: ProductCreate, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user), _: dict = Depends(require_active_subscription)):
     if current_user["role"] not in [UserRole.admin.value, UserRole.superadmin.value]:
         raise HTTPException(status_code=403, detail="Solo administradores")
     product = Product(restaurant_id=current_user["restaurant_id"], **data.model_dump())
@@ -131,7 +137,7 @@ async def create_product(data: ProductCreate, db: AsyncSession = Depends(get_db)
     return product
 
 @router.patch("/products/{product_id}", response_model=ProductOut)
-async def update_product(product_id: int, data: ProductUpdate, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def update_product(product_id: int, data: ProductUpdate, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user), _: dict = Depends(require_active_subscription)):
     if current_user["role"] not in [UserRole.admin.value, UserRole.superadmin.value]:
         raise HTTPException(status_code=403, detail="Solo administradores")
     result = await db.execute(select(Product).where(Product.id == product_id, Product.restaurant_id == current_user["restaurant_id"]))
@@ -148,7 +154,7 @@ async def update_product(product_id: int, data: ProductUpdate, db: AsyncSession 
     return product
 
 @router.delete("/products/{product_id}", status_code=204)
-async def delete_product(product_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def delete_product(product_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user), _: dict = Depends(require_active_subscription)):
     if current_user["role"] not in [UserRole.admin.value, UserRole.superadmin.value]:
         raise HTTPException(status_code=403, detail="Solo administradores")
     result = await db.execute(select(Product).where(Product.id == product_id, Product.restaurant_id == current_user["restaurant_id"]))

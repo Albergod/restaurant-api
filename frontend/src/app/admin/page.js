@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { apiFetch, getToken, getRole, logout } from "@/lib/api"
+import { useSubscription } from "@/lib/subscription"
+import OnboardingChecklist from "@/components/OnboardingChecklist"
 import {
   Users,
   ShoppingBag,
@@ -24,6 +26,7 @@ export default function AdminDashboard() {
   const [ordersList, setOrdersList] = useState([])
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")
+  const { state: subState, status: subStatus } = useSubscription()
   const [stats, setStats] = useState({
     totalOrders: 0,
     pendingOrders: 0,
@@ -119,7 +122,8 @@ export default function AdminDashboard() {
     }
 
     loadStats()
-    const interval = setInterval(loadStats, 15000)
+    // 60s y pausa en background: el dashboard no necesita tiempo real.
+    const interval = setInterval(() => { if (!document.hidden) loadStats() }, 60000)
     return () => { cancelled = true; clearInterval(interval) }
   }, [authorized, router])
 
@@ -226,6 +230,8 @@ export default function AdminDashboard() {
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-sm text-gray-500 mt-1">Resumen general del restaurante</p>
       </div>
+
+      <OnboardingChecklist displayState={subState} demo={subStatus?.restaurant_slug === "demo"} />
 
       {/* Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">

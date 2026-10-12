@@ -31,6 +31,8 @@ async def login(form: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = 
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Usuario desactivado")
+    # Nota: el login NO bloquea por mora/trial. El paywall vive en el
+    # frontend (el admin debe poder entrar a pagar; el staff ve un aviso).
     token = create_access_token({"sub": str(user.id), "role": user.role.value, "restaurant_id": user.restaurant_id})
     return {"access_token": token, "token_type": "bearer", "role": user.role, "restaurant_id": user.restaurant_id}
 

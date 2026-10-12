@@ -7,12 +7,13 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.qr import generate_qr_image
 from app.core.security import get_current_user
+from app.deps import require_active_subscription
 from app.models.models import Table, UserRole
 
 router = APIRouter(prefix="/api/tables", tags=["Mesas"])
 
 @router.post("/", response_model=dict, status_code=201)
-async def create_table(data: dict, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def create_table(data: dict, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user), _: dict = Depends(require_active_subscription)):
     if current_user["role"] not in [UserRole.admin.value, UserRole.superadmin.value]:
         raise HTTPException(status_code=403, detail="Solo administradores")
     restaurant_id = current_user["restaurant_id"]
@@ -58,7 +59,7 @@ async def get_table(table_id: int, db: AsyncSession = Depends(get_db)):
     }
 
 @router.post("/{table_id}/regenerate-qr", response_model=dict)
-async def regenerate_qr(table_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def regenerate_qr(table_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user), _: dict = Depends(require_active_subscription)):
     if current_user["role"] not in [UserRole.admin.value, UserRole.superadmin.value]:
         raise HTTPException(status_code=403, detail="Solo administradores")
     result = await db.execute(select(Table).where(Table.id == table_id, Table.restaurant_id == current_user["restaurant_id"]))

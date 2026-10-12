@@ -26,9 +26,19 @@ os.environ.setdefault("SEED_DEFAULT_USERS", "false")
 
 
 @pytest.fixture(scope="session")
-def pg_url(postgresql_proc):
-    """URL de la BD PostgreSQL temporal para toda la sesion de tests."""
-    return f"postgresql+asyncpg://{postgresql_proc.user}@{postgresql_proc.host}:{postgresql_proc.port}/{postgresql_proc.dbname}"
+def pg_url(request):
+    """URL de la BD PostgreSQL temporal para toda la sesion de tests.
+
+    Si existe TEST_DATABASE_URL se usa esa BD (útil cuando no hay binarios
+    de postgres locales); si no, se levanta un PostgreSQL temporal.
+    """
+    override = os.environ.get("TEST_DATABASE_URL")
+    if override:
+        if "+asyncpg" not in override:
+            override = override.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return override
+    proc = request.getfixturevalue("postgresql_proc")
+    return f"postgresql+asyncpg://{proc.user}@{proc.host}:{proc.port}/{proc.dbname}"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -38,8 +48,13 @@ def configure_db(pg_url):
 
 
 @pytest.fixture(scope="session")
-async def app(pg_url):
-    """App FastAPI con BD apuntando al Postgres de tests."""
+async def app(pg_url, configure_db):
+    """App FastAPI con BD apuntando al Postgres de tests.
+
+    Nota: se pide configure_db explícitamente para garantizar el orden:
+    primero se fija DATABASE_URL y después se importa la app (el engine
+    se crea al importar app.core.database).
+    """
     # Importar DENTRO del fixture para que os.environ ya este seteado
     from app.core.database import engine, Base
     from app.main import app as fastapi_app
@@ -63,6 +78,7 @@ async def clean_db(app):
         await conn.execute(text(
             "TRUNCATE TABLE order_status_history, order_items, orders, "
             "chat_messages, chat_sessions, loyalty_points, products, "
+            "subscription_payments, "
             "categories, tables, users, restaurants RESTART IDENTITY CASCADE"
         ))
 
@@ -77,22 +93,30 @@ async def client(app):
 
 @pytest.fixture
 async def superadmin_token(client):
-    """Crea un superadmin y devuelve su JWT."""
-    response = await client.post(
-        "/api/auth/register",
-        json={
-            "name": "Test Superadmin",
-            "email": "super@test.com",
-            "password": "superpass123",
-            "role": "superadmin",
-        },
-    )
-    assert response.status_code == 201, f"Setup fallo: {response.text}"
+    """Crea un superadmin directo en BD y devuelve su JWT.
+
+    No usa /api/auth/register para no depender del flag
+    ALLOW_PUBLIC_STAFF_REGISTRATION.
+    """
+    from app.core.database import AsyncSessionLocal
+    from app.core.security import hash_password
+    from app.models.models import User, UserRole
+
+    async with AsyncSessionLocal() as session:
+        session.add(User(
+            name="Test Superadmin",
+            email="super@test.com",
+            hashed_password=hash_password("superpass123"),
+            role=UserRole.superadmin,
+            restaurant_id=None,
+        ))
+        await session.commit()
 
     response = await client.post(
         "/api/auth/login",
         data={"username": "super@test.com", "password": "superpass123"},
     )
+    assert response.status_code == 200, f"Setup fallo: {response.text}"
     return response.json()["access_token"]
 
 
@@ -131,3 +155,13 @@ async def created_restaurant(client, auth_headers):
         "admin_token": admin_token,
         "admin_headers": {"Authorization": f"Bearer {admin_token}"},
     }
+
+
+@pytest.fixture
+async def active_restaurant(client, created_restaurant):
+    """Restaurante con trial activado (puede operar: crear mesas, productos...)."""
+    rid = created_restaurant["data"]["id"]
+    headers = created_restaurant["admin_headers"]
+    response = await client.post(f"/api/restaurants/{rid}/trial", headers=headers)
+    assert response.status_code == 201, f"Setup fallo: {response.text}"
+    return created_restaurant

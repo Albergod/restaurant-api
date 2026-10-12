@@ -40,16 +40,6 @@ export async function apiFetch(path, options = {}) {
   return res.json()
 }
 
-export function connectOrdersWebSocket(onMessage) {
-  const token = getToken()
-  if (!token) return null
-  const url = `${WS_URL}/api/orders/ws?token=${token}`
-  const ws = new WebSocket(url)
-  ws.onmessage = (e) => onMessage(JSON.parse(e.data))
-  ws.onerror = () => {}  // Ignore 403 silently
-  return ws
-}
-
 export function connectWebSocket(sessionId, onMessage) {
   const token = getToken()
   const url = token
@@ -60,3 +50,17 @@ export function connectWebSocket(sessionId, onMessage) {
   return ws
 }
 
+
+export const billingApi = {
+  config: () => apiFetch("/api/billing/config"),
+  status: () => apiFetch("/api/billing/status"),
+  paddleCheckout: (plan, cycle) =>
+    apiFetch("/api/billing/paddle/checkout", {
+      method: "POST",
+      body: JSON.stringify({ plan, cycle }),
+    }),
+  paddleTransaction: (transactionId) =>
+    apiFetch(`/api/billing/paddle/transaction/${transactionId}`),
+  startTrial: (restaurantId) =>
+    apiFetch(`/api/restaurants/${restaurantId}/trial`, { method: "POST" }),
+};

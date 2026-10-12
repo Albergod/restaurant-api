@@ -1,7 +1,10 @@
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, EmailStr, field_validator
-from app.models.models import OrderStatus, OrderType, UserRole, MessageSender
+from app.models.models import (
+    BillingCycle, OrderStatus, OrderType, SubscriptionPlan,
+    SubscriptionStatus, UserRole, MessageSender,
+)
 
 class RestaurantCreate(BaseModel):
     name: str
@@ -13,6 +16,29 @@ class RestaurantCreate(BaseModel):
 class RestaurantUpdate(BaseModel):
     name: Optional[str] = None
     slug: Optional[str] = None
+
+class RestaurantSignup(BaseModel):
+    """Alta self-service: crea restaurante (registered) + usuario admin."""
+    name: str
+    slug: str
+    admin_name: str = "Administrador"
+    admin_email: EmailStr
+    admin_password: str
+    website: Optional[str] = ""  # honeypot anti-bots: debe venir vacío
+
+class RestaurantOut(BaseModel):
+    id: int
+    name: str
+    slug: str
+    is_active: bool = True
+    plan: SubscriptionPlan = SubscriptionPlan.trial
+    subscription_status: SubscriptionStatus = SubscriptionStatus.trialing
+    trial_started_at: Optional[datetime] = None
+    trial_ends_at: Optional[datetime] = None
+    current_period_end: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
 
 class UserRegister(BaseModel):
     name: str

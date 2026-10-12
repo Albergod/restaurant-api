@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { apiFetch, logout, getRole, getToken, connectOrdersWebSocket } from "@/lib/api"
+import { apiFetch, logout, getRole, getToken } from "@/lib/api"
+import { useSubscription } from "@/lib/subscription"
+import SuspendedNotice from "@/components/SuspendedNotice"
 import { ChefHat, LogOut, AlertCircle, CheckCircle2, Clock, CookingPot, User, Loader2 } from "lucide-react"
 import KitchenOrderCard from "@/components/kitchen/OrderCard"
 
@@ -13,6 +15,7 @@ export default function KitchenPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [role] = useState(typeof window !== "undefined" ? getRole() : "")
+  const { state: subState, loading: subLoading, blocked } = useSubscription()
 
   useEffect(() => {
     const token = getToken()
@@ -24,9 +27,10 @@ export default function KitchenPage() {
   useEffect(() => {
     if (!authorized) return
     let cancelled = false
-    let ws = null
 
     async function loadOrders() {
+      // No recargar con la pestaña oculta (ahorra requests/DB en la nube).
+      if (document.hidden) return
       try {
         const data = await apiFetch("/api/orders/kitchen")
         if (!cancelled) { setOrders(data); setError(null) }
@@ -37,8 +41,8 @@ export default function KitchenPage() {
     }
 
     loadOrders()
-    ws = connectOrdersWebSocket(() => loadOrders())
-    return () => { cancelled = true; if (ws) ws.close() }
+    const interval = setInterval(loadOrders, 15000)
+    return () => { cancelled = true; clearInterval(interval) }
   }, [authorized, router])
 
   async function updateStatus(orderId, status) {
@@ -57,8 +61,12 @@ export default function KitchenPage() {
   const confirmed = orders.filter((o) => o.status === "confirmed")
   const preparing = orders.filter((o) => o.status === "preparing")
 
-  if (!authorized || loading) {
+  if (!authorized || loading || subLoading) {
     return <div className="flex min-h-screen items-center justify-center bg-[#fafafa]"><Loader2 className="h-6 w-6 animate-spin text-gray-300" /></div>
+  }
+
+  if (blocked || subState === "registered") {
+    return <SuspendedNotice state={subState} />
   }
 
   return (

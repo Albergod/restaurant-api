@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { apiFetch, logout, getRole, getToken, connectOrdersWebSocket } from "@/lib/api"
+import { apiFetch, logout, getRole, getToken } from "@/lib/api"
+import { useSubscription } from "@/lib/subscription"
+import SuspendedNotice from "@/components/SuspendedNotice"
 import { User, LogOut, AlertCircle, Users, Search, Loader2 } from "lucide-react"
 import OrderCard from "@/components/waiter/OrderCard"
 
@@ -20,6 +22,7 @@ export default function WaiterPage() {
   const [error, setError] = useState(null)
   const [role] = useState(typeof window !== "undefined" ? getRole() : "")
   const [activeTab, setActiveTab] = useState("pending")
+  const { state: subState, loading: subLoading, blocked } = useSubscription()
 
   useEffect(() => {
     const token = getToken()
@@ -32,9 +35,10 @@ export default function WaiterPage() {
   useEffect(() => {
     if (!authorized) return
     let cancelled = false
-    let ws = null
 
     async function loadOrders() {
+      // No recargar con la pestaña oculta (ahorra requests/DB en la nube).
+      if (document.hidden) return
       try {
         const data = await apiFetch("/api/orders/")
         if (!cancelled) {
@@ -50,9 +54,8 @@ export default function WaiterPage() {
     }
 
     loadOrders()
-    ws = connectOrdersWebSocket(() => loadOrders())
-    const interval = setInterval(loadOrders, 5000)
-    return () => { cancelled = true; if (ws) ws.close(); clearInterval(interval) }
+    const interval = setInterval(loadOrders, 15000)
+    return () => { cancelled = true; clearInterval(interval) }
   }, [authorized, router])
 
   async function updateStatus(orderId, status) {
@@ -85,8 +88,12 @@ export default function WaiterPage() {
 
   const filteredOrders = activeTab === "pending" ? pending : activeTab === "active" ? active : delivered
 
-  if (!authorized || loading) {
+  if (!authorized || loading || subLoading) {
     return <div className="flex min-h-screen items-center justify-center bg-[#fafafa]"><Loader2 className="h-6 w-6 animate-spin text-gray-300" /></div>
+  }
+
+  if (blocked || subState === "registered") {
+    return <SuspendedNotice state={subState} />
   }
 
   return (
