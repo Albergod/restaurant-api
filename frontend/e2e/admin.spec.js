@@ -43,6 +43,34 @@ test("admin crea categoría y producto desde la UI", async ({ page }) => {
   await expect(page.getByText(`Plato UI ${stamp}`)).toBeVisible({ timeout: 15000 });
 });
 
+test("admin mueve producto a una categoría recién creada (auditoría)", async ({ page }) => {
+  const newCat = `Bebidas UI ${stamp}`;
+  await uiLogin(page, ctx.email, ctx.password, /\/admin/);
+  await page.goto("/admin/menu");
+
+  // Crea la categoría nueva como la auditora.
+  await page.getByRole("button", { name: /categorías/i }).click();
+  await page.getByRole("button", { name: /nueva/i }).click();
+  await page.getByPlaceholder("Ej: Bebidas").fill(newCat);
+  await page.getByRole("button", { name: /^guardar$/i }).click();
+  await expect(page.getByText(newCat)).toBeVisible({ timeout: 15000 });
+
+  // Edita el producto del test anterior y lo cambia a la categoría nueva.
+  await page.getByRole("button", { name: /productos/i }).click();
+  const card = page.locator("div.rounded-xl", { hasText: `Plato UI ${stamp}` }).first();
+  await card.getByRole("button", { name: /editar producto/i }).click();
+  await page.locator("select").first().selectOption({ label: newCat });
+  await page.getByRole("button", { name: /guardar cambios/i }).click();
+
+  // Filtra por la categoría nueva: el producto debe estar ahí…
+  await page.getByRole("button", { name: newCat }).click();
+  await expect(page.getByText(`Plato UI ${stamp}`)).toBeVisible({ timeout: 15000 });
+  // …y ya no en la anterior.
+  await page.getByRole("button", { name: /todas/i }).click();
+  await page.getByRole("button", { name: `Cat UI ${stamp}` }).click();
+  await expect(page.getByText(`Plato UI ${stamp}`)).toHaveCount(0);
+});
+
 test("admin crea mesa con QR desde la UI", async ({ page }) => {
   await uiLogin(page, ctx.email, ctx.password, /\/admin/);
   await page.goto("/admin/tables");

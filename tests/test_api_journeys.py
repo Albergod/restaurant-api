@@ -223,3 +223,64 @@ async def test_journey_customer_chat_and_tracking(client):
     assert read.status_code == 204, read.text
     closed = await client.patch(f"/api/chat/sessions/{session_id}/close", headers=headers)
     assert closed.status_code == 204, closed.text
+
+
+async def test_product_can_move_to_new_category(client):
+    """La auditoría: editar un producto y cambiarlo a una categoría recién
+    creada debe persistir (antes el PATCH ignoraba category_id en silencio)."""
+    data, headers = await _signup_owner(client, slug="move-cat-rest", email="owner@movecat.co")
+    rid = data["id"]
+    trial = await client.post(f"/api/restaurants/{rid}/trial", headers=headers)
+    assert trial.status_code == 201, trial.text
+
+    entradas = await client.post("/api/menu/categories", headers=headers, json={"name": "Entradas"})
+    bebidas = await client.post("/api/menu/categories", headers=headers, json={"name": "Bebidas"})
+    assert entradas.status_code == 201 and bebidas.status_code == 201
+    prod = await client.post(
+        "/api/menu/products", headers=headers,
+        json={"name": "Limonada", "price": 8000, "category_id": entradas.json()["id"]},
+    )
+    assert prod.status_code == 201, prod.text
+    prod_id = prod.json()["id"]
+
+    moved = await client.patch(
+        f"/api/menu/products/{prod_id}", headers=headers,
+        json={"category_id": bebidas.json()["id"]},
+    )
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["category_id"] == bebidas.json()["id"]
+
+    menu = await client.get("/api/menu/", headers=headers, params={"restaurant_id": rid})
+    assert menu.status_code == 200, menu.text
+    by_cat = {c["id"]: [p["name"] for p in c["products"]] for c in menu.json()}
+    assert "Limonada" in by_cat[bebidas.json()["id"]]
+    assert "Limonada" not in by_cat[entradas.json()["id"]]
+
+
+async def test_product_move_to_foreign_category_rejected(client):
+    """No se puede mover un producto a una categoría de otro restaurante."""
+    data_a, headers_a = await _signup_owner(client, slug="move-a", email="owner@movea.co")
+    data_b, headers_b = await _signup_owner(client, slug="move-b", email="owner@moveb.co")
+    for h, rid in ((headers_a, data_a["id"]), (headers_b, data_b["id"])):
+        trial = await client.post(f"/api/restaurants/{rid}/trial", headers=h)
+        assert trial.status_code == 201, trial.text
+
+    cat_a = await client.post("/api/menu/categories", headers=headers_a, json={"name": "A"})
+    cat_b = await client.post("/api/menu/categories", headers=headers_b, json={"name": "B"})
+    prod = await client.post(
+        "/api/menu/products", headers=headers_a,
+        json={"name": "Plato A", "price": 1000, "category_id": cat_a.json()["id"]},
+    )
+    assert prod.status_code == 201, prod.text
+
+    denied = await client.patch(
+        f"/api/menu/products/{prod.json()['id']}", headers=headers_a,
+        json={"category_id": cat_b.json()["id"]},
+    )
+    assert denied.status_code == 400, denied.text
+
+    missing = await client.patch(
+        f"/api/menu/products/{prod.json()['id']}", headers=headers_a,
+        json={"category_id": 999999},
+    )
+    assert missing.status_code == 400, missing.text

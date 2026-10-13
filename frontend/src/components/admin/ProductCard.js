@@ -42,7 +42,7 @@ export default function ProductCard({ product, onToggle, onEdit, onDelete }) {
             </button>
           </div>
           <div className="flex gap-1">
-            <button onClick={() => onEdit(product)}
+            <button onClick={() => onEdit(product)} title="Editar producto"
               className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-400 transition-colors hover:border-gray-300 hover:text-gray-600">
               <Pencil className="h-3.5 w-3.5" />
             </button>

@@ -121,6 +121,7 @@ class ProductUpdate(BaseModel):
     description: Optional[str] = None
     price: Optional[float] = None
     image_url: Optional[str] = None
+    category_id: Optional[int] = None
     is_available: Optional[bool] = None
     is_featured: Optional[bool] = None
     is_promoted: Optional[bool] = None

@@ -145,6 +145,13 @@ async def update_product(product_id: int, data: ProductUpdate, db: AsyncSession 
     if not product:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     changes = data.model_dump(exclude_unset=True)
+    if "category_id" in changes:
+        new_cat = (await db.execute(select(Category).where(
+            Category.id == changes["category_id"],
+            Category.restaurant_id == current_user["restaurant_id"],
+        ))).scalar_one_or_none()
+        if not new_cat:
+            raise HTTPException(status_code=400, detail="La categoría no existe en tu restaurante")
     old_image_url = product.image_url if "image_url" in changes and changes["image_url"] != product.image_url else None
     for field, value in changes.items():
         setattr(product, field, value)
