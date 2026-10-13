@@ -192,4 +192,79 @@ test.describe("demo pública", () => {
     await expect(page.getByText(/activa tu prueba gratuita/i)).toHaveCount(0);
     await expect(page.getByText(/pon tu restaurante a vender/i)).toHaveCount(0);
   });
+
+  test("tour demo: panel → cliente → mesero → cocina → reiniciar → salir", async ({ page, request }) => {
+    // La demo ya la garantiza el test anterior (misma BD, workers: 1).
+    const login = await request.post(`${API}/api/auth/login`, {
+      form: { username: "demo@restaurant.com", password: "demo1234" },
+    });
+    if (login.status() !== 200) test.skip(true, "sin credenciales demo");
+    const demoHeaders = { Authorization: `Bearer ${(await login.json()).access_token}` };
+
+    // Parte del tour con la demo recién restaurada (el reset re-siembra la
+    // carta canónica, así que mesa y producto se leen DESPUÉS de él).
+    await request.post(`${API}/api/restaurants/demo/reset`, { headers: demoHeaders });
+    const overview = await request.get(`${API}/api/restaurants/demo/overview`);
+    if (overview.status() !== 200) test.skip(true, "sin restaurante demo");
+    const { table_qr: tableQr, categories } = await overview.json();
+    const firstProduct = categories.flatMap((c) => c.products)[0];
+    const productId = firstProduct?.id;
+    const productName = firstProduct?.name || "";
+    if (!tableQr || !productId || !productName) test.skip(true, "demo sin mesa o productos");
+
+    await page.goto("/demo");
+    await page.getByRole("button", { name: /explorar el panel demo/i }).click();
+    await expect(page).toHaveURL(/\/admin/, { timeout: 20000 });
+    await expect(page.getByText(/tour demo/i).first()).toBeVisible({ timeout: 15000 });
+    // En el tour no hay "Cerrar sesión": la única salida es el botón Salir.
+    await expect(page.getByRole("button", { name: /cerrar sesión/i })).toHaveCount(0);
+
+    // Cliente: vista pública del menú con barra de retorno al tour.
+    await page.getByRole("button", { name: /^cliente$/i }).click();
+    await expect(page).toHaveURL(/\/menu\/.+\?.*tour=1/, { timeout: 20000 });
+    await expect(page.getByText(/vista cliente/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(productName, { exact: false }).first()).toBeVisible({ timeout: 15000 });
+
+    // El "cliente" pide de verdad (pedido público con el QR demo).
+    const order = await request.post(`${API}/api/orders/`, {
+      data: { table_qr: tableQr, items: [{ product_id: productId, quantity: 1 }] },
+    });
+    expect(order.status()).toBe(201);
+    const orderId = (await order.json()).id;
+
+    // Mesero: el pedido pendiente aparece (la vista cliente solo tiene
+    // retorno al tour, los tabs completos están en panel/mesero/cocina).
+    await page.getByRole("button", { name: /volver al tour/i }).click();
+    await expect(page).toHaveURL(/\/admin/, { timeout: 15000 });
+    await page.getByRole("button", { name: /^mesero$/i }).click();
+    await expect(page).toHaveURL(/\/waiter/, { timeout: 15000 });
+    await expect(page.getByText(productName, { exact: false }).first()).toBeVisible({ timeout: 20000 });
+
+    // Cocina: tras confirmar, el pedido aparece en cocina.
+    const confirm = await request.patch(`${API}/api/orders/${orderId}/status`, {
+      headers: demoHeaders, data: { status: "confirmed" },
+    });
+    expect(confirm.status()).toBe(200);
+    await page.getByRole("button", { name: /^cocina$/i }).click();
+    await expect(page).toHaveURL(/\/kitchen/, { timeout: 15000 });
+    await expect(page.getByText(productName, { exact: false }).first()).toBeVisible({ timeout: 20000 });
+
+    // Reiniciar: confirma el diálogo y espera la recarga real (si el reset
+    // no disparara, waitForNavigation falla fuerte en vez de pasar de largo).
+    await page.getByRole("button", { name: /^panel$/i }).click();
+    await expect(page).toHaveURL(/\/admin/, { timeout: 15000 });
+    page.once("dialog", (d) => d.accept());
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: "load", timeout: 20000 }),
+      page.getByRole("button", { name: /reiniciar/i }).click(),
+    ]);
+    const orders = await request.get(`${API}/api/orders/`, { headers: demoHeaders });
+    expect(orders.status()).toBe(200);
+    expect(await orders.json()).toHaveLength(0);
+
+    // Salir: vuelve a /demo sin sesión ni flag de tour.
+    await page.getByRole("button", { name: /salir/i }).click();
+    await expect(page).toHaveURL(/\/demo/, { timeout: 15000 });
+    expect(await page.evaluate(() => localStorage.getItem("demo_tour"))).toBeNull();
+  });
 });

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { billingApi, getRole } from "@/lib/api"
+import { billingApi, getRole, logout } from "@/lib/api"
+import { disableDemoTour } from "@/components/DemoTourTabs"
 import { Sparkles, Clock, AlertTriangle, ArrowRight, X } from "lucide-react"
 
 function daysLeft(iso) {
@@ -36,7 +37,7 @@ export default function TrialBanner() {
           confirma y juega sin miedo, nada es real.
         </p>
         <button
-          onClick={() => router.push("/demo")}
+          onClick={() => { disableDemoTour(); logout(); router.push("/demo") }}
           className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-sky-600 px-4 py-2 text-xs font-bold text-white hover:bg-sky-700"
         >
           Volver a la demo <ArrowRight className="h-3.5 w-3.5" />

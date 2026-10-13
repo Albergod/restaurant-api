@@ -97,6 +97,88 @@ async def demo_overview(db: AsyncSession = Depends(get_db)):
         ],
     }
 
+@router.post("/demo/reset", status_code=200)
+async def demo_reset(db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """Restaura la demo a su estado original.
+
+    Solo funciona si el usuario autenticado pertenece al restaurante con slug
+    'demo'. Borra pedidos, chat, lealtad y TODA la posible basura dejada por
+    visitantes (platos, categorias, mesas y usuarios creados en la demo), y
+    re-siembra la carta y mesas originales. Conserva unicamente al usuario que
+    pulsa el boton (normalmente el admin demo del tour), ademas del
+    restaurante, su suscripcion y su configuracion. Sin el freno de pedidos
+    activos: es una demo.
+    """
+    restaurant = (await db.execute(select(Restaurant).where(Restaurant.id == current_user["restaurant_id"]))).scalar_one_or_none()
+    if not restaurant or restaurant.slug != "demo":
+        raise HTTPException(status_code=403, detail="Solo disponible para el restaurante demo")
+    restaurant_id = restaurant.id
+
+    order_ids = select(Order.id).where(Order.restaurant_id == restaurant_id)
+    session_ids = select(ChatSession.id).where(ChatSession.restaurant_id == restaurant_id)
+    counts = {}
+    for model, child_column, parent_ids in [
+        (OrderStatusHistory, OrderStatusHistory.order_id, order_ids),
+        (OrderItem, OrderItem.order_id, order_ids),
+        (ChatMessage, ChatMessage.session_id, session_ids),
+        (ChatSession, None, None),
+        (LoyaltyPoints, None, None),
+        (Order, None, None),
+        (Product, None, None),
+        (Category, None, None),
+        (Table, None, None),
+        (User, None, None),
+    ]:
+        stmt = delete(model)
+        if child_column is not None:
+            stmt = stmt.where(child_column.in_(parent_ids))
+        elif model is User:
+            stmt = stmt.where(User.restaurant_id == restaurant_id, User.id != int(current_user["id"]))
+        else:
+            stmt = stmt.where(model.restaurant_id == restaurant_id)
+        result = await db.execute(stmt)
+        counts[model.__name__] = result.rowcount
+        if child_column is not None:
+            await db.flush()
+
+    # Re-siembra canónica (igual que el seed inicial + carta de ejemplo para
+    # que el tour nunca arranque con el menú vacío).
+    for t_data in [
+        {"number": 1, "capacity": 4},
+        {"number": 2, "capacity": 2},
+        {"number": 3, "capacity": 6},
+        {"number": 4, "capacity": 4},
+    ]:
+        db.add(Table(restaurant_id=restaurant_id, qr_code=str(uuid.uuid4()), **t_data))
+    menu = [
+        ("Entradas", "Para empezar", 1, [
+            ("Empanadas x3", "Crujientes, con ají de la casa", 12000),
+            ("Patacones con hogao", "Plátano verde con hogao criollo", 10000),
+        ]),
+        ("Platos Fuertes", "Especialidades", 2, [
+            ("Bandeja Paisa", "La completa: fríjoles, chicharrón, huevo y más", 28000),
+            ("Sancocho de gallina", "Servido con arroz, aguacate y arepa", 22000),
+        ]),
+        ("Bebidas", "Para acompañar", 3, [
+            ("Limonada Natural", "Recién hecha, en agua o en leche", 8000),
+            ("Jugo de lulo", "Fruta fresca licuada al momento", 9000),
+        ]),
+    ]
+    for cat_name, cat_desc, sort_order, products in menu:
+        category = Category(restaurant_id=restaurant_id, name=cat_name, description=cat_desc, sort_order=sort_order)
+        db.add(category)
+        await db.flush()
+        for prod_name, prod_desc, price in products:
+            db.add(Product(
+                restaurant_id=restaurant_id, category_id=category.id,
+                name=prod_name, description=prod_desc, price=price,
+            ))
+    counts["SeededTables"] = 4
+    counts["SeededProducts"] = 6
+
+    await db.commit()
+    return {"restaurant_id": restaurant_id, "deleted": counts, "message": "Demo restaurada a su estado original. Solo se conserva tu usuario."}
+
 @router.post("/", status_code=201)
 async def create_restaurant(data: RestaurantCreate, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user["role"] != UserRole.superadmin.value:

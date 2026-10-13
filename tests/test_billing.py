@@ -413,3 +413,120 @@ async def test_demo_overview_public(client):
     assert body["restaurant"]["slug"] == "demo"
     assert body["table_qr"] == "demo-qr-123"
     assert body["categories"][0]["products"][0]["name"] == "Bandeja"
+
+
+# ── Reset demo ─────────────────────────────────────────────────────────────
+
+async def _make_demo_restaurant(client, auth_headers):
+    """Crea restaurante con slug 'demo' y devuelve (id, admin_headers)."""
+    response = await client.post(
+        "/api/restaurants/",
+        headers=auth_headers,
+        json={
+            "name": "Demo",
+            "slug": "demo",
+            "admin_name": "Demo Admin",
+            "admin_email": "demoadmin@test.com",
+            "admin_password": "demopass123",
+        },
+    )
+    assert response.status_code == 201, f"Setup fallo: {response.text}"
+    login = await client.post(
+        "/api/auth/login",
+        data={"username": "demoadmin@test.com", "password": "demopass123"},
+    )
+    assert login.status_code == 200, login.text
+    return response.json()["id"], {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+
+async def test_demo_reset_full_restore(client, auth_headers):
+    """El reset restaura la demo: borra basura de visitantes y re-siembra carta/mesas.
+
+    Conserva unicamente al usuario que lo pulsa.
+    """
+    from sqlalchemy import select, func
+    from app.core.database import AsyncSessionLocal
+    from app.core.security import hash_password
+    from app.models.models import Category, Product, Table, Order, OrderItem, User, UserRole
+
+    demo_id, demo_headers = await _make_demo_restaurant(client, auth_headers)
+    keeper_id = None  # se resuelve por BD abajo
+    async with AsyncSessionLocal() as session:
+        # Basura de un "visitante": categoria/plato/mesa/usuario/pedido extra.
+        session.add(Category(restaurant_id=demo_id, name="Basura", sort_order=99))
+        await session.flush()
+        junk_cat = (await session.execute(
+            select(Category).where(Category.restaurant_id == demo_id, Category.name == "Basura")
+        )).scalar_one()
+        session.add(Product(restaurant_id=demo_id, category_id=junk_cat.id, name="Plato Basura", price=1))
+        session.add(Table(restaurant_id=demo_id, number=99, qr_code="junk-qr"))
+        keeper = (await session.execute(
+            select(User).where(User.restaurant_id == demo_id, User.email == "demoadmin@test.com")
+        )).scalar_one()
+        keeper_id = keeper.id
+        session.add(User(
+            name="Intruso", email="intruso@test.com", hashed_password=hash_password("x" * 12),
+            role=UserRole.waiter, restaurant_id=demo_id,
+        ))
+        session.add(Order(restaurant_id=demo_id, table_id=None, status="pending", total=1))
+        await session.flush()
+        order_id = (await session.execute(
+            select(Order).where(Order.restaurant_id == demo_id)
+        )).scalar_one().id
+        prod_id = (await session.execute(
+            select(Product).where(Product.restaurant_id == demo_id, Product.name == "Plato Basura")
+        )).scalar_one().id
+        session.add(OrderItem(order_id=order_id, product_id=prod_id, quantity=1, unit_price=1))
+        await session.commit()
+
+    response = await client.post("/api/restaurants/demo/reset", headers=demo_headers)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["deleted"]["Order"] == 1
+    assert body["deleted"]["User"] == 3  # mesero/cocina del signup + intruso; el keeper se conserva
+    assert body["deleted"]["Table"] == 1
+    assert body["deleted"]["SeededProducts"] == 6
+
+    async with AsyncSessionLocal() as session:
+        orders = (await session.execute(
+            select(func.count()).select_from(Order).where(Order.restaurant_id == demo_id)
+        )).scalar()
+        assert orders == 0
+        cats = (await session.execute(
+            select(Category.name).where(Category.restaurant_id == demo_id).order_by(Category.sort_order)
+        )).scalars().all()
+        assert cats == ["Entradas", "Platos Fuertes", "Bebidas"]
+        n_products = (await session.execute(
+            select(func.count()).select_from(Product).where(Product.restaurant_id == demo_id)
+        )).scalar()
+        assert n_products == 6
+        tables = (await session.execute(
+            select(Table.number).where(Table.restaurant_id == demo_id).order_by(Table.number)
+        )).scalars().all()
+        assert tables == [1, 2, 3, 4]
+        users = (await session.execute(
+            select(User.id).where(User.restaurant_id == demo_id)
+        )).scalars().all()
+        assert users == [keeper_id]
+        assert "Plato Basura" not in (await session.execute(
+            select(Product.name).where(Product.restaurant_id == demo_id)
+        )).scalars().all()
+
+    # El keeper sigue pudiendo entrar.
+    relogin = await client.post(
+        "/api/auth/login",
+        data={"username": "demoadmin@test.com", "password": "demopass123"},
+    )
+    assert relogin.status_code == 200, relogin.text
+
+
+async def test_demo_reset_forbidden_for_other_restaurant(client, created_restaurant):
+    response = await client.post(
+        "/api/restaurants/demo/reset", headers=created_restaurant["admin_headers"]
+    )
+    assert response.status_code == 403, response.text
+
+
+async def test_demo_reset_requires_auth(client):
+    response = await client.post("/api/restaurants/demo/reset")
+    assert response.status_code in (401, 403), response.text

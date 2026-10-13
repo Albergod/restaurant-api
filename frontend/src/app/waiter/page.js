@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { apiFetch, logout, getRole, getToken } from "@/lib/api"
 import { useSubscription } from "@/lib/subscription"
 import SuspendedNotice from "@/components/SuspendedNotice"
+import DemoTourTabs, { isDemoTour } from "@/components/DemoTourTabs"
 import { User, LogOut, AlertCircle, Users, Search, Loader2 } from "lucide-react"
 import OrderCard from "@/components/waiter/OrderCard"
 
@@ -21,6 +22,7 @@ export default function WaiterPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [role] = useState(typeof window !== "undefined" ? getRole() : "")
+  const [inDemoTour] = useState(isDemoTour)
   const [activeTab, setActiveTab] = useState("pending")
   const { state: subState, loading: subLoading, blocked } = useSubscription()
 
@@ -98,6 +100,7 @@ export default function WaiterPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
+      <DemoTourTabs current="mesero" />
       <header className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500 shadow-lg shadow-amber-200">
@@ -114,10 +117,12 @@ export default function WaiterPage() {
               <User className="h-3.5 w-3.5" />{role}
             </div>
           )}
-          <button onClick={handleLogout}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50">
-            <LogOut className="h-4 w-4" />Salir
-          </button>
+          {!inDemoTour && (
+            <button onClick={handleLogout}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50">
+              <LogOut className="h-4 w-4" />Salir
+            </button>
+          )}
         </div>
       </header>
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { API_URL } from "@/lib/api"
+import { enableDemoTour } from "@/components/DemoTourTabs"
 import { ChefHat, ArrowRight, ArrowLeft, Loader2, AlertCircle, LayoutDashboard } from "lucide-react"
 
 const DEMO_EMAIL = process.env.NEXT_PUBLIC_DEMO_EMAIL || "demo@restaurant.com"
@@ -40,6 +41,7 @@ export default function DemoPage() {
       const data = await res.json()
       localStorage.setItem("token", data.access_token)
       localStorage.setItem("role", data.role)
+      enableDemoTour()
       router.replace("/admin")
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo entrar al panel demo")

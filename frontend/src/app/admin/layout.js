@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { getToken, getRole, logout } from "@/lib/api"
 import TrialBanner from "@/components/TrialBanner"
+import DemoTourTabs, { isDemoTour } from "@/components/DemoTourTabs"
 import {
   LayoutDashboard,
   Users,
@@ -30,6 +31,9 @@ export default function AdminLayout({ children }) {
   const [authorized, setAuthorized] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [role, setRole] = useState("")
+  // En el tour demo no hay "Cerrar sesión": rompería el tour mandando al
+  // login. La única salida es el botón Salir de la barra del tour.
+  const [inDemoTour] = useState(isDemoTour)
 
   useEffect(() => {
     const token = getToken()
@@ -99,13 +103,15 @@ export default function AdminLayout({ children }) {
             <UserIcon className="h-4 w-4" />
             <span className="capitalize">{role}</span>
           </div>
-          <button
-            onClick={() => { logout(); router.replace("/login") }}
-            className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-50"
-          >
-            <LogOut className="h-5 w-5" />
-            Cerrar sesión
-          </button>
+          {!inDemoTour && (
+            <button
+              onClick={() => { logout(); router.replace("/login") }}
+              className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-50"
+            >
+              <LogOut className="h-5 w-5" />
+              Cerrar sesión
+            </button>
+          )}
         </div>
       </aside>
 
@@ -128,6 +134,7 @@ export default function AdminLayout({ children }) {
         </header>
 
         <main className="flex-1">
+          <DemoTourTabs current="panel" />
           <TrialBanner />
           {children}
         </main>
