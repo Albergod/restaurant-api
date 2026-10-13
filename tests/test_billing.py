@@ -460,6 +460,9 @@ async def test_demo_reset_full_restore(client, auth_headers):
         )).scalar_one()
         session.add(Product(restaurant_id=demo_id, category_id=junk_cat.id, name="Plato Basura", price=1))
         session.add(Table(restaurant_id=demo_id, number=99, qr_code="junk-qr"))
+        # QRs "impresos": deben sobrevivir al reset (bug: Cliente caído).
+        session.add(Table(restaurant_id=demo_id, number=1, qr_code="qr-uno"))
+        session.add(Table(restaurant_id=demo_id, number=2, qr_code="qr-dos"))
         keeper = (await session.execute(
             select(User).where(User.restaurant_id == demo_id, User.email == "demoadmin@test.com")
         )).scalar_one()
@@ -484,7 +487,7 @@ async def test_demo_reset_full_restore(client, auth_headers):
     body = response.json()
     assert body["deleted"]["Order"] == 1
     assert body["deleted"]["User"] == 3  # mesero/cocina del signup + intruso; el keeper se conserva
-    assert body["deleted"]["Table"] == 1
+    assert body["deleted"]["Table"] == 3  # junk-99 + mesas 1 y 2 (se re-siembran)
     assert body["deleted"]["SeededProducts"] == 6
 
     async with AsyncSessionLocal() as session:
@@ -504,6 +507,13 @@ async def test_demo_reset_full_restore(client, auth_headers):
             select(Table.number).where(Table.restaurant_id == demo_id).order_by(Table.number)
         )).scalars().all()
         assert tables == [1, 2, 3, 4]
+        qrs = {
+            n: qr for n, qr in (await session.execute(
+                select(Table.number, Table.qr_code).where(Table.restaurant_id == demo_id)
+            )).all()
+        }
+        assert qrs[1] == "qr-uno" and qrs[2] == "qr-dos"  # QRs preservados
+        assert qrs[3] and qrs[4] and qrs[3] != qrs[4]  # nuevos con UUID fresco
         users = (await session.execute(
             select(User.id).where(User.restaurant_id == demo_id)
         )).scalars().all()

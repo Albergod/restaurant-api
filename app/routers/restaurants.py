@@ -115,6 +115,17 @@ async def demo_reset(db: AsyncSession = Depends(get_db), current_user: dict = De
         raise HTTPException(status_code=403, detail="Solo disponible para el restaurante demo")
     restaurant_id = restaurant.id
 
+    # Los QRs impresos/enlazados no deben morir con el reset: se capturan por
+    # número de mesa y se reutilizan al re-sembrar (solo las mesas nuevas
+    # reciben UUID fresco). Sin esto, la pestaña Cliente del tour apuntaba a
+    # un QR muerto tras reiniciar.
+    existing_qrs = {
+        row.number: row.qr_code
+        for row in (await db.execute(
+            select(Table.number, Table.qr_code).where(Table.restaurant_id == restaurant_id)
+        )).all()
+    }
+
     order_ids = select(Order.id).where(Order.restaurant_id == restaurant_id)
     session_ids = select(ChatSession.id).where(ChatSession.restaurant_id == restaurant_id)
     counts = {}
@@ -143,14 +154,19 @@ async def demo_reset(db: AsyncSession = Depends(get_db), current_user: dict = De
             await db.flush()
 
     # Re-siembra canónica (igual que el seed inicial + carta de ejemplo para
-    # que el tour nunca arranque con el menú vacío).
+    # que el tour nunca arranque con el menú vacío). Reutiliza los QRs
+    # capturados arriba para no romper enlaces existentes.
     for t_data in [
         {"number": 1, "capacity": 4},
         {"number": 2, "capacity": 2},
         {"number": 3, "capacity": 6},
         {"number": 4, "capacity": 4},
     ]:
-        db.add(Table(restaurant_id=restaurant_id, qr_code=str(uuid.uuid4()), **t_data))
+        db.add(Table(
+            restaurant_id=restaurant_id,
+            qr_code=existing_qrs.get(t_data["number"]) or str(uuid.uuid4()),
+            **t_data,
+        ))
     menu = [
         ("Entradas", "Para empezar", 1, [
             ("Empanadas x3", "Crujientes, con ají de la casa", 12000),

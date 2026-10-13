@@ -275,6 +275,14 @@ test.describe("demo pública", () => {
     expect(orders.status()).toBe(200);
     expect(await orders.json()).toHaveLength(0);
 
+    // Regresión: tras reiniciar por botón, la pestaña Cliente debe cargar el
+    // menú (el QR ya no muere con el reset y el caché se limpia).
+    await page.getByRole("button", { name: /^cliente$/i }).click();
+    await expect(page).toHaveURL(/\/menu\/.+\?.*tour=1/, { timeout: 20000 });
+    await expect(page.getByText(/vista cliente/i)).toBeVisible({ timeout: 15000 });
+    await page.getByRole("button", { name: /volver al tour/i }).click();
+    await expect(page).toHaveURL(/\/admin/, { timeout: 15000 });
+
     // Salir: vuelve a /demo sin sesión ni flag de tour.
     await page.getByRole("button", { name: /salir/i }).click();
     await expect(page).toHaveURL(/\/demo/, { timeout: 15000 });

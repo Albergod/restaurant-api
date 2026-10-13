@@ -104,6 +104,9 @@ export default function DemoTourTabs({ current }) {
     setResetting(true)
     try {
       await apiFetch("/api/restaurants/demo/reset", { method: "POST" })
+      // El QR cacheado podría no existir tras el reset: limpiarlo obliga a
+      // resolverlo de nuevo y la pestaña Cliente nunca apunta a un QR muerto.
+      try { localStorage.removeItem(QR_CACHE) } catch { /* noop */ }
       window.location.reload()
     } catch (e) {
       alert(e instanceof Error ? e.message : "No se pudo reiniciar la demo")
