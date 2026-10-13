@@ -267,4 +267,44 @@ test.describe("demo pública", () => {
     await expect(page).toHaveURL(/\/demo/, { timeout: 15000 });
     expect(await page.evaluate(() => localStorage.getItem("demo_tour"))).toBeNull();
   });
+
+  test("tour demo en móvil: sidebar por encima de la barra y barra a ancho completo", async ({ page, request }) => {
+    const login = await request.post(`${API}/api/auth/login`, {
+      form: { username: "demo@restaurant.com", password: "demo1234" },
+    });
+    if (login.status() !== 200) test.skip(true, "sin credenciales demo");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/demo");
+    await page.getByRole("button", { name: /explorar el panel demo/i }).click();
+    await expect(page).toHaveURL(/\/admin/, { timeout: 20000 });
+    // En móvil el pill "TOUR DEMO" se oculta; los tabs son la señal visible.
+    await expect(page.getByRole("button", { name: /^cocina$/i })).toBeVisible({ timeout: 15000 });
+
+    // Abrir el drawer (botón hamburguesa del header móvil): el aside debe
+    // quedar por encima de la barra del tour.
+    await page.locator("header.sticky button").first().click();
+    const z = await page.evaluate(() => {
+      const zi = (el) => Number(getComputedStyle(el).zIndex || 0);
+      const aside = document.querySelector("aside");
+      const bar = [...document.querySelectorAll("div")].find((d) =>
+        d.textContent.includes("TOUR DEMO") && getComputedStyle(d).position === "sticky"
+      );
+      return { aside: aside ? zi(aside) : -1, bar: bar ? zi(bar) : -1 };
+    });
+    expect(z.aside).toBeGreaterThan(z.bar);
+
+    // Mesero: cerrar el drawer tocando el overlay y verificar que la barra
+    // va a ancho completo (borde izquierdo en x=0).
+    await page.mouse.click(350, 400);
+    await page.getByRole("button", { name: /^mesero$/i }).click();
+    await expect(page).toHaveURL(/\/waiter/, { timeout: 15000 });
+    await expect(page.getByRole("button", { name: /^mesero$/i })).toBeVisible({ timeout: 15000 });
+    const left = await page.evaluate(() => {
+      const bar = [...document.querySelectorAll("div")].find((d) =>
+        d.textContent.includes("TOUR DEMO") && getComputedStyle(d).position === "sticky"
+      );
+      return bar ? bar.getBoundingClientRect().left : -1;
+    });
+    expect(left).toBe(0);
+  });
 });

@@ -99,8 +99,9 @@ export default function WaiterPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-8">
+    <>
       <DemoTourTabs current="mesero" />
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
       <header className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500 shadow-lg shadow-amber-200">
@@ -157,6 +158,7 @@ export default function WaiterPage() {
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }

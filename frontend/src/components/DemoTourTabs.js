@@ -120,7 +120,7 @@ export default function DemoTourTabs({ current }) {
 
   return (
     <div className="sticky top-0 z-50 border-b border-amber-500/30 bg-gray-900 text-white shadow-lg">
-      <div className="mx-auto flex max-w-6xl items-center gap-1.5 overflow-x-auto px-4 py-3">
+      <div className="mx-auto flex max-w-6xl items-center gap-1 sm:gap-1.5 overflow-x-auto px-2 sm:px-4 py-2 sm:py-3">
         <span className="mr-1 hidden shrink-0 items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3.5 py-1.5 text-xs font-bold text-amber-300 sm:inline-flex">
           <Sparkles className="h-4 w-4" /> TOUR DEMO
         </span>
@@ -137,11 +137,11 @@ export default function DemoTourTabs({ current }) {
                 else goCliente()
               }}
               title={t.key === "cliente" && !tableQr ? "Cargando vista cliente…" : undefined}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors disabled:opacity-70 ${
+              className={`inline-flex shrink-0 items-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-bold transition-colors disabled:opacity-70 ${
                 active ? "bg-amber-500 text-white" : "text-gray-300 hover:bg-white/10 hover:text-white"
               }`}
             >
-              {busy ? <Loader2 className="h-[18px] w-[18px] animate-spin" /> : <t.icon className="h-[18px] w-[18px]" />} {t.label}
+              {busy ? <Loader2 className="h-4 w-4 sm:h-[18px] sm:w-[18px] animate-spin" /> : <t.icon className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />} {t.label}
             </button>
           )
         })}
@@ -150,16 +150,16 @@ export default function DemoTourTabs({ current }) {
           onClick={handleReset}
           disabled={resetting}
           title="Borrar pedidos de prueba"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-gray-300 hover:bg-white/10 hover:text-white disabled:opacity-60"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 sm:px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-gray-300 hover:bg-white/10 hover:text-white disabled:opacity-60"
         >
-          {resetting ? <Loader2 className="h-[18px] w-[18px] animate-spin" /> : <RotateCcw className="h-[18px] w-[18px]" />}
+          {resetting ? <Loader2 className="h-4 w-4 sm:h-[18px] sm:w-[18px] animate-spin" /> : <RotateCcw className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />}
           <span className="hidden sm:inline">Reiniciar</span>
         </button>
         <button
           onClick={handleExit}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/20"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white/10 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-white/20"
         >
-          <LogOut className="h-[18px] w-[18px]" /> Salir
+          <LogOut className="h-4 w-4 sm:h-[18px] sm:w-[18px]" /> Salir
         </button>
       </div>
     </div>
