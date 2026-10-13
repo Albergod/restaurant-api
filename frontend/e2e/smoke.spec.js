@@ -157,11 +157,12 @@ test.describe("flujo cliente: QR, pedido y mesero", () => {
 test.describe("demo pública", () => {
   test("/demo carga sin login", async ({ page, request }) => {
     // Garantiza restaurante demo + admin con las credenciales que usa la
-    // página demo (si ya existe de otra corrida, se reutiliza).
+    // página demo (NEXT_PUBLIC_DEMO_* o sus defaults). Si ya existe de
+    // otra corrida (400), se reutiliza: la clave nunca cambia.
     const demoSignup = await request.post(`${API}/api/restaurants/signup`, {
       data: {
         name: "Demo", slug: "demo", admin_name: "D",
-        admin_email: "admin@restaurant.com", admin_password: "admin123", website: "",
+        admin_email: "demo@restaurant.com", admin_password: "demo1234", website: "",
       },
     });
     if (demoSignup.status() === 201) {
