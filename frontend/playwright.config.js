@@ -40,7 +40,9 @@ module.exports = defineConfig({
         `${PY} -m uvicorn app.main:app --host 127.0.0.1 --port 8001'`,
       url: `${API_URL}/`,
       timeout: 120000,
-      reuseExistingServer: true,
+      // false a propósito: reutilizar un servidor viejo en silencio ha causado
+      // falsos rojos (backend sin las env de este run). Mejor fallar fuerte.
+      reuseExistingServer: false,
       stdout: "pipe",
     },
     {
@@ -52,7 +54,7 @@ module.exports = defineConfig({
         `npm start -- --port 3100 --hostname 127.0.0.1'`,
       url: WEB_URL,
       timeout: 300000,
-      reuseExistingServer: true,
+      reuseExistingServer: false,
     },
   ],
 });
