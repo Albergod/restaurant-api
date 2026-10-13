@@ -1,0 +1,7 @@
+# Dependencias SOLO para tests (no van al deploy de Render).
+# Instalar con: pip install -r requirements.txt -r requirements-test.txt
+pytest
+pytest-asyncio
+pytest-postgresql
+pyjwt
+httpx

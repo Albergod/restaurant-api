@@ -80,6 +80,32 @@ Documentación interactiva: `http://localhost:8000/docs`
 
 ---
 
+## Arranque local (Linux / NixOS)
+
+Desde la raíz del repositorio, abre tres terminales:
+
+```bash
+# Terminal 1: PostgreSQL
+docker compose up -d
+
+# Terminal 2: API (entra primero al entorno Nix del proyecto)
+nix-shell
+uvicorn app.main:app --reload
+
+# Terminal 3: frontend
+cd frontend
+npm install
+npm run dev
+```
+
+Abre `http://localhost:3000`. La API queda en `http://localhost:8000` y su
+documentación en `http://localhost:8000/docs`.
+
+Si Docker responde `permission denied`, ejecuta temporalmente el comando con
+`sudo` o agrega tu usuario al grupo `docker` y vuelve a iniciar sesión.
+
+---
+
 ## Comandos útiles de Docker (la base de datos)
 
 ```powershell
@@ -93,6 +119,46 @@ docker compose logs -f db # Ver qué hace la base de datos
 
 Si cambiaste el usuario/contraseña en `docker-compose.yml`, recuerda
 ajustar también `DATABASE_URL` en tu `.env`.
+
+---
+
+## Despliegue gratuito para demostración
+
+La aplicación se divide entre servicios con planes gratuitos:
+
+1. **Neon** aloja PostgreSQL.
+2. **Render** ejecuta FastAPI usando `/render.yaml`.
+3. **Vercel** ejecuta Next.js desde el directorio `/frontend`.
+4. **Cloudinary** conserva las imágenes subidas por el administrador.
+
+Variables del backend:
+
+```text
+DATABASE_URL=postgresql://...          # copiar directamente desde Neon
+SECRET_KEY=<valor aleatorio largo>
+BACKEND_CORS_ORIGINS=https://<dominio-del-frontend>
+FRONTEND_URL=https://<dominio-del-frontend>
+SEED_DEFAULT_USERS=true
+ALLOW_PUBLIC_STAFF_REGISTRATION=false
+DEFAULT_ADMIN_PASSWORD=<valor aleatorio>
+DEFAULT_WAITER_PASSWORD=<valor aleatorio>
+DEFAULT_KITCHEN_PASSWORD=<valor aleatorio>
+MEDIA_STORAGE=cloudinary
+CLOUDINARY_CLOUD_NAME=<cloud name>
+CLOUDINARY_API_KEY=<API key>
+CLOUDINARY_API_SECRET=<API secret>
+```
+
+En desarrollo `MEDIA_STORAGE=local` conserva el comportamiento original y
+guarda los archivos en `/uploads`. En Render debe ser `cloudinary`, porque el
+disco del plan gratuito se borra al suspender o reiniciar el servicio.
+
+Variables del frontend (se aplican durante el build):
+
+```text
+NEXT_PUBLIC_API_URL=https://<dominio-del-backend>
+NEXT_PUBLIC_WS_URL=wss://<dominio-del-backend>
+```
 
 ---
 
@@ -207,4 +273,3 @@ Estas son las librerías de `requirements.txt` y su rol en el proyecto:
 | **python-multipart** | Necesario para que FastAPI pueda recibir formularios y subidas de archivos (por ejemplo, el formulario de login). |
 | **websockets** | Soporte de bajo nivel para el **chat en tiempo real** (las rutas `WS /api/chat/ws/...`). |
 | **httpx** | Cliente HTTP. Se usa para hacer peticiones a servicios externos y en las pruebas de la API. |
-
