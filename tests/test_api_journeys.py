@@ -284,3 +284,57 @@ async def test_product_move_to_foreign_category_rejected(client):
         json={"category_id": 999999},
     )
     assert missing.status_code == 400, missing.text
+
+
+async def test_category_rename_and_guarded_delete(client):
+    """Renombrar ok; borrar bloqueado con aviso si tiene productos."""
+    data, headers = await _signup_owner(client, slug="cat-rest", email="owner@cat.co")
+    rid = data["id"]
+    trial = await client.post(f"/api/restaurants/{rid}/trial", headers=headers)
+    assert trial.status_code == 201, trial.text
+
+    cat = await client.post("/api/menu/categories", headers=headers, json={"name": "Bebidas"})
+    assert cat.status_code == 201, cat.text
+    cat_id = cat.json()["id"]
+
+    renamed = await client.patch(f"/api/menu/categories/{cat_id}", headers=headers,
+                                 json={"name": "Bebidas frías"})
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["name"] == "Bebidas frías"
+
+    empty = await client.patch(f"/api/menu/categories/{cat_id}", headers=headers,
+                               json={"name": "   "})
+    assert empty.status_code == 400, empty.text
+
+    prod = await client.post("/api/menu/products", headers=headers,
+                             json={"name": "Limonada", "price": 8000, "category_id": cat_id})
+    assert prod.status_code == 201, prod.text
+
+    blocked = await client.delete(f"/api/menu/categories/{cat_id}", headers=headers)
+    assert blocked.status_code == 400, blocked.text
+    assert "1 producto" in blocked.json()["detail"]
+
+    # Mueve el plato fuera y ahora sí deja borrar.
+    other = await client.post("/api/menu/categories", headers=headers, json={"name": "Otras"})
+    moved = await client.patch(f"/api/menu/products/{prod.json()['id']}", headers=headers,
+                               json={"category_id": other.json()["id"]})
+    assert moved.status_code == 200, moved.text
+    gone = await client.delete(f"/api/menu/categories/{cat_id}", headers=headers)
+    assert gone.status_code == 204, gone.text
+
+
+async def test_category_rename_foreign_rejected(client):
+    """No se puede renombrar ni borrar categoría ajena."""
+    _, headers_a = await _signup_owner(client, slug="cat-a", email="owner@cata.co")
+    data_b, headers_b = await _signup_owner(client, slug="cat-b", email="owner@catb.co")
+    data_a_rid = (await client.get("/api/billing/status", headers=headers_a)).json()["restaurant_id"]
+    for h, rid in ((headers_a, data_a_rid), (headers_b, data_b["id"])):
+        trial = await client.post(f"/api/restaurants/{rid}/trial", headers=h)
+        assert trial.status_code == 201, trial.text
+    cat_b = await client.post("/api/menu/categories", headers=headers_b, json={"name": "B"})
+    cat_b_id = cat_b.json()["id"]
+    denied = await client.patch(f"/api/menu/categories/{cat_b_id}", headers=headers_a,
+                                json={"name": "Robada"})
+    assert denied.status_code == 404, denied.text
+    denied_del = await client.delete(f"/api/menu/categories/{cat_b_id}", headers=headers_a)
+    assert denied_del.status_code == 404, denied_del.text

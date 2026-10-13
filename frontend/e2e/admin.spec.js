@@ -128,3 +128,24 @@ test("cuenta real no muestra guías demo", async ({ page }) => {
   await expect(page.getByText(/mueve un plato de una a otra/i)).toHaveCount(0);
   await expect(page.getByText("TOUR DEMO")).toHaveCount(0);
 });
+
+test("categorías: renombrar y borrado bloqueado con aviso si tiene platos", async ({ page }) => {
+  const renamed = `Cat Renombrada ${stamp}`;
+  await uiLogin(page, ctx.email, ctx.password, /\/admin/);
+  await page.goto("/admin/menu");
+  await page.getByRole("button", { name: /categorías/i }).click();
+
+  // Renombrar la categoría con el plato dentro (Bebidas UI lo recibió antes).
+  await page.getByRole("button", { name: `Renombrar Bebidas UI ${stamp}` }).click();
+  await expect(page.getByText(/renombrar categoría/i)).toBeVisible({ timeout: 10000 });
+  await page.getByPlaceholder("Ej: Bebidas").fill(renamed);
+  await page.getByRole("button", { name: /guardar cambios/i }).click();
+  await expect(page.getByText(renamed)).toBeVisible({ timeout: 15000 });
+
+  // Intentar borrarla: bloqueado con aviso (tiene 1 producto).
+  await page.getByRole("button", { name: `Eliminar ${renamed}` }).click();
+  await page.getByRole("button", { name: /^eliminar$/i }).click();
+  await expect(page.getByText(/no se puede eliminar/i)).toBeVisible({ timeout: 15000 });
+  // La categoría sigue ahí.
+  await expect(page.getByText(renamed)).toBeVisible({ timeout: 10000 });
+});

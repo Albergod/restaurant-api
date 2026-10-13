@@ -1,6 +1,6 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Header
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -123,8 +123,36 @@ async def delete_category(category_id: int, db: AsyncSession = Depends(get_db), 
     cat = result.scalar_one_or_none()
     if not cat:
         raise HTTPException(status_code=404, detail="Categoría no encontrada")
+    n_products = (await db.execute(
+        select(func.count()).select_from(Product).where(Product.category_id == category_id)
+    )).scalar()
+    if n_products > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se puede eliminar: tiene {n_products} producto(s). Muévelos a otra categoría primero.",
+        )
     cat.is_active = False
     await db.commit()
+
+
+@router.patch("/categories/{category_id}", response_model=CategoryOut)
+async def update_category(category_id: int, data: dict, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user), _: dict = Depends(require_active_subscription)):
+    """Renombra una categoría del propio restaurante."""
+    if current_user["role"] not in [UserRole.admin.value, UserRole.superadmin.value]:
+        raise HTTPException(status_code=403, detail="Solo administradores")
+    result = await db.execute(select(Category).where(Category.id == category_id, Category.restaurant_id == current_user["restaurant_id"]))
+    cat = result.scalar_one_or_none()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+    name = str((data or {}).get("name", "")).strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+    if len(name) > 120:
+        raise HTTPException(status_code=400, detail="El nombre es muy largo (máx 120)")
+    cat.name = name
+    await db.commit()
+    await db.refresh(cat)
+    return cat
 
 async def _round_for_currency(db: AsyncSession, restaurant_id, price):
     """En COP no hay centavos: redondea al entero. En USD conserva decimales."""

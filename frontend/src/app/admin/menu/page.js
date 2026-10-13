@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { apiFetch, logout, getRole, getToken } from "@/lib/api"
-import { User, LogOut, AlertCircle, Plus, Settings2, Layers, Package, Loader2 } from "lucide-react"
+import { User, LogOut, AlertCircle, Plus, Settings2, Layers, Package, Loader2, Pencil, Trash2 } from "lucide-react"
 import ProductCard from "@/components/admin/ProductCard"
 import ProductForm from "@/components/admin/ProductForm"
 import CategoryForm from "@/components/admin/CategoryForm"
@@ -28,6 +28,7 @@ export default function AdminMenuPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleteCategoryTarget, setDeleteCategoryTarget] = useState(null)
   const [editingProduct, setEditingProduct] = useState(null)
+  const [editingCategory, setEditingCategory] = useState(null)
 
   const [form, setForm] = useState({
     name: "", description: "", price: "", image_url: "", category_id: "",
@@ -112,9 +113,16 @@ export default function AdminMenuPage() {
 
   async function saveCategory() {
     try {
-      await apiFetch("/api/menu/categories", { method: "POST", body: JSON.stringify({ name: catForm.name }) })
+      const name = catForm.name.trim()
+      if (!name) { setError("El nombre no puede estar vacío"); return }
+      if (editingCategory) {
+        await apiFetch(`/api/menu/categories/${editingCategory.id}`, { method: "PATCH", body: JSON.stringify({ name }) })
+      } else {
+        await apiFetch("/api/menu/categories", { method: "POST", body: JSON.stringify({ name }) })
+      }
       setCategoryDialog(false)
       setCatForm({ name: "" })
+      setEditingCategory(null)
       loadData()
     } catch (e) {
       if (e.message?.startsWith("401")) { logout(); router.replace("/login"); return }
@@ -133,6 +141,15 @@ export default function AdminMenuPage() {
     }
   }
 
+  function serverDetail(e) {
+    try {
+      const json = JSON.parse(e.message.replace(/^\d+:\s*/, ""))
+      return json.detail || null
+    } catch {
+      return null
+    }
+  }
+
   async function deleteCategory(categoryId) {
     try {
       await apiFetch(`/api/menu/categories/${categoryId}`, { method: "DELETE" })
@@ -140,7 +157,9 @@ export default function AdminMenuPage() {
       loadData()
     } catch (e) {
       if (e.message?.startsWith("401")) { logout(); router.replace("/login"); return }
-      setError("Error al eliminar la categoría")
+      // 400 con aviso (p. ej. "tiene N productos"): se muestra tal cual.
+      setDeleteCategoryTarget(null)
+      setError(serverDetail(e) || "Error al eliminar la categoría")
     }
   }
 
@@ -212,7 +231,7 @@ export default function AdminMenuPage() {
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">Categorías</h2>
-            <button onClick={() => { setCatForm({ name: "" }); setCategoryDialog(true) }}
+            <button onClick={() => { setEditingCategory(null); setCatForm({ name: "" }); setCategoryDialog(true) }}
               className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-amber-600">
               <Plus className="h-4 w-4" />Nueva
             </button>
@@ -233,6 +252,20 @@ export default function AdminMenuPage() {
                       <p className="text-sm font-medium text-gray-900">{cat.name}</p>
                       <p className="text-xs text-gray-400">{(cat.products || []).length} productos</p>
                     </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => { setEditingCategory(cat); setCatForm({ name: cat.name }); setCategoryDialog(true) }}
+                      title={`Renombrar ${cat.name}`}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-400 transition-colors hover:border-gray-300 hover:text-gray-600">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setDeleteCategoryTarget(cat)}
+                      title={`Eliminar ${cat.name}`}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-red-200 text-red-400 transition-colors hover:border-red-300 hover:text-red-600 hover:bg-red-50">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -280,8 +313,8 @@ export default function AdminMenuPage() {
         onSave={saveProduct} onClose={() => setProductDialog(false)} onError={setError} />
 
       <CategoryForm catForm={catForm} onChange={setCatForm} categories={categories}
-        categoryDialog={categoryDialog}
-        onSave={saveCategory} onClose={() => setCategoryDialog(false)}
+        categoryDialog={categoryDialog} editingCategory={editingCategory}
+        onSave={saveCategory} onClose={() => { setCategoryDialog(false); setEditingCategory(null) }}
         onDelete={setDeleteCategoryTarget} />
 
       <DeleteDialog item={deleteTarget} title="Eliminar producto" onConfirm={deleteProduct} onClose={() => setDeleteTarget(null)} />

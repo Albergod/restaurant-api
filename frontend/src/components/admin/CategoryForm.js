@@ -1,13 +1,13 @@
 "use client"
 
-export default function CategoryForm({ catForm, onChange, categories, categoryDialog, onSave, onClose, onDelete }) {
+export default function CategoryForm({ catForm, onChange, categories, categoryDialog, editingCategory, onSave, onClose, onDelete }) {
   if (!categoryDialog) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-        <h3 className="text-lg font-bold text-gray-900">Nueva categoría</h3>
+        <h3 className="text-lg font-bold text-gray-900">{editingCategory ? "Renombrar categoría" : "Nueva categoría"}</h3>
         <div className="mt-4 space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">Nombre</label>
@@ -44,8 +44,8 @@ export default function CategoryForm({ catForm, onChange, categories, categoryDi
         <div className="mt-6 flex justify-end gap-2">
           <button onClick={onClose}
             className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50">Cerrar</button>
-          <button onClick={onSave} disabled={!catForm.name}
-            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50">Guardar</button>
+          <button onClick={onSave} disabled={!catForm.name?.trim()}
+            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50">{editingCategory ? "Guardar cambios" : "Guardar"}</button>
         </div>
       </div>
     </div>
