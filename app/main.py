@@ -152,6 +152,13 @@ async def _seed_default_data():
 async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # create_all no altera tablas existentes: parche idempotente para BDs
+        # creadas antes de la columna currency (ceguera de prod incluida).
+        from sqlalchemy import text
+        await conn.execute(text(
+            "ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS "
+            "currency VARCHAR(3) DEFAULT 'COP'"
+        ))
     if settings.SEED_DEFAULT_USERS:
         await _seed_default_data()
     asyncio.create_task(_expiry_cron())

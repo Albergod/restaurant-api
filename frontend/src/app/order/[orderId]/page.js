@@ -6,10 +6,13 @@ import { apiFetch } from "@/lib/api"
 import { UtensilsCrossed, AlertCircle, MessageSquare, ChevronLeft, Package, Home } from "lucide-react"
 import StatusStepper, { STATUS_LABELS } from "@/components/order/StatusStepper"
 import OrderItems from "@/components/order/OrderItems"
+import { formatPrice } from "@/lib/money"
+import { useCurrency } from "@/lib/useCurrency"
 
 export default function OrderPage() {
   const params = useParams()
   const router = useRouter()
+  const currency = useCurrency()
   const orderId = params.orderId
   const [order, setOrder] = useState(null)
   const [tableNumber, setTableNumber] = useState(null)
@@ -120,7 +123,7 @@ export default function OrderPage() {
       <div className="border-t border-gray-200 bg-white px-4 py-4 mt-6">
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-500">Total</span>
-          <span className="text-xl font-bold text-gray-900">${Number(order.total || 0).toFixed(2)}</span>
+          <span className="text-xl font-bold text-gray-900">{formatPrice(order.total || 0, currency)}</span>
         </div>
       </div>
 

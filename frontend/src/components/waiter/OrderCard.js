@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation"
 import { Clock, Package, ChefHat, CheckCircle2, ClipboardList, XCircle, CheckCircle2 as CheckCircle, MessageSquare, Trash2 } from "lucide-react"
+import { formatPrice } from "@/lib/money"
+import { useCurrency } from "@/lib/useCurrency"
 
 const STATUS_LABELS = {
   pending: "Pendiente", confirmed: "Confirmado", preparing: "En preparación",
@@ -26,6 +28,7 @@ const BORDER_COLORS = {
 
 export default function OrderCard({ order, onUpdateStatus, onDelete }) {
   const router = useRouter()
+  const currency = useCurrency()
   const StatusIcon = STATUS_ICONS[order.status] || Clock
   const borderColor = BORDER_COLORS[order.status] || "border-l-gray-200"
 
@@ -61,7 +64,7 @@ export default function OrderCard({ order, onUpdateStatus, onDelete }) {
             <div key={i}>
               <p className="text-sm text-gray-600">
                 <span className="font-medium text-gray-900">{item.quantity}x</span> {item.product_name}
-                <span className="ml-2 text-gray-400">${Number(item.unit_price).toFixed(2)}</span>
+                <span className="ml-2 text-gray-400">{formatPrice(item.unit_price, currency)}</span>
               </p>
               {item.observations && (
                 <p className="mt-0.5 text-xs italic text-amber-700">Nota: {item.observations}</p>

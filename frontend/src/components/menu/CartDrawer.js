@@ -1,12 +1,13 @@
 "use client"
 
+import { formatPrice } from "@/lib/money"
+import { useCurrency } from "@/lib/useCurrency"
+
 import { ShoppingCart, Plus, Minus, Trash2, X, Send, Loader } from "lucide-react"
 
-function formatPrice(price) {
-  return `$${Number(price).toFixed(2)}`
-}
 
 export default function CartDrawer({ cart, cartOpen, cartCount, cartTotal, onClose, onUpdateQty, onUpdateNote, onSubmit, submitting }) {
+  const currency = useCurrency()
   if (!cartOpen) return null
 
   return (
@@ -45,7 +46,7 @@ export default function CartDrawer({ cart, cartOpen, cartCount, cartTotal, onClo
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-gray-900 text-sm truncate">{item.name}</h4>
-                      <p className="text-xs font-medium text-gray-500 mt-0.5">{formatPrice(item.price)} c/u</p>
+                      <p className="text-xs font-medium text-gray-500 mt-0.5">{formatPrice(item.price, currency)} c/u</p>
                       <textarea
                         value={item.note || ""}
                         onChange={(e) => onUpdateNote(item.id, e.target.value)}
@@ -55,7 +56,7 @@ export default function CartDrawer({ cart, cartOpen, cartCount, cartTotal, onClo
                       />
                     </div>
                     <div className="flex flex-col items-end gap-3">
-                      <span className="font-black text-gray-900">{formatPrice(Number(item.price) * item.quantity)}</span>
+                      <span className="font-black text-gray-900">{formatPrice(Number(item.price, currency) * item.quantity)}</span>
                       <div className="flex items-center gap-2 bg-gray-50 rounded-xl border border-gray-200 p-1">
                         <button
                           onClick={() => onUpdateQty(item.id, item.quantity - 1)}
@@ -83,7 +84,7 @@ export default function CartDrawer({ cart, cartOpen, cartCount, cartTotal, onClo
           <div className="px-6 py-5 bg-white border-t border-gray-100 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)]">
             <div className="flex items-center justify-between mb-4">
               <span className="text-gray-500 font-medium">Total a pagar</span>
-              <span className="text-2xl font-black text-gray-900">{formatPrice(cartTotal)}</span>
+              <span className="text-2xl font-black text-gray-900">{formatPrice(cartTotal, currency)}</span>
             </div>
             <button
               onClick={onSubmit}

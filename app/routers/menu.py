@@ -126,11 +126,25 @@ async def delete_category(category_id: int, db: AsyncSession = Depends(get_db), 
     cat.is_active = False
     await db.commit()
 
+async def _round_for_currency(db: AsyncSession, restaurant_id, price):
+    """En COP no hay centavos: redondea al entero. En USD conserva decimales."""
+    if price is None or not restaurant_id:
+        return price
+    restaurant = await db.get(Restaurant, restaurant_id)
+    if restaurant is not None and (restaurant.currency or "COP") == "COP":
+        return round(price)
+    return price
+
+
 @router.post("/products", response_model=ProductOut, status_code=201)
 async def create_product(data: ProductCreate, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user), _: dict = Depends(require_active_subscription)):
     if current_user["role"] not in [UserRole.admin.value, UserRole.superadmin.value]:
         raise HTTPException(status_code=403, detail="Solo administradores")
-    product = Product(restaurant_id=current_user["restaurant_id"], **data.model_dump())
+    payload = data.model_dump()
+    payload["price"] = await _round_for_currency(db, current_user["restaurant_id"], payload["price"])
+    if payload.get("promo_price") is not None:
+        payload["promo_price"] = await _round_for_currency(db, current_user["restaurant_id"], payload["promo_price"])
+    product = Product(restaurant_id=current_user["restaurant_id"], **payload)
     db.add(product)
     await db.commit()
     await db.refresh(product)
@@ -145,6 +159,10 @@ async def update_product(product_id: int, data: ProductUpdate, db: AsyncSession 
     if not product:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     changes = data.model_dump(exclude_unset=True)
+    if "price" in changes:
+        changes["price"] = await _round_for_currency(db, current_user["restaurant_id"], changes["price"])
+    if "promo_price" in changes and changes["promo_price"] is not None:
+        changes["promo_price"] = await _round_for_currency(db, current_user["restaurant_id"], changes["promo_price"])
     if "category_id" in changes:
         new_cat = (await db.execute(select(Category).where(
             Category.id == changes["category_id"],

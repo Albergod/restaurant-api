@@ -2,12 +2,12 @@
 
 import { Flame, UtensilsCrossed, Plus } from "lucide-react"
 import { getImageUrl } from "@/lib/api"
+import { formatPrice } from "@/lib/money"
+import { useCurrency } from "@/lib/useCurrency"
 
-function formatPrice(price) {
-  return `$${Number(price).toFixed(2)}`
-}
 
 export default function FeaturedCarousel({ featured, onAdd }) {
+  const currency = useCurrency()
   if (!featured || featured.length === 0) return null
 
   return (
@@ -44,7 +44,7 @@ export default function FeaturedCarousel({ featured, onAdd }) {
               <p className="mt-1 text-[10px] uppercase font-bold text-amber-500">{p.category_name}</p>
             </div>
             <div className="mt-3 flex items-center justify-between">
-              <p className="font-black text-gray-900">{formatPrice(p.price)}</p>
+              <p className="font-black text-gray-900">{formatPrice(p.price, currency)}</p>
               <button
                 onClick={() => onAdd(p)}
                 className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-900 text-white transition-all hover:bg-gray-800 hover:scale-110 active:scale-95 shadow-md"

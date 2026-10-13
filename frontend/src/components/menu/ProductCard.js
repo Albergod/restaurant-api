@@ -2,12 +2,12 @@
 
 import { Plus, Image } from "lucide-react"
 import { getImageUrl } from "@/lib/api"
+import { formatPrice } from "@/lib/money"
+import { useCurrency } from "@/lib/useCurrency"
 
-function formatPrice(price) {
-  return `$${Number(price).toFixed(2)}`
-}
 
 export default function ProductCard({ product, onAdd, index }) {
+  const currency = useCurrency()
   const hasPromo = product.promo_price && product.promo_price < product.price
 
   return (
@@ -45,11 +45,11 @@ export default function ProductCard({ product, onAdd, index }) {
         <div className="mt-auto flex items-center justify-between pt-2">
           <div>
             <span className={`text-base font-black ${hasPromo ? "text-red-500" : "text-gray-900"}`}>
-              {formatPrice(hasPromo ? product.promo_price : product.price)}
+              {formatPrice(hasPromo ? product.promo_price : product.price, currency)}
             </span>
             {hasPromo && (
               <span className="ml-1 text-[10px] font-bold text-gray-400 line-through">
-                {formatPrice(product.price)}
+                {formatPrice(product.price, currency)}
               </span>
             )}
           </div>

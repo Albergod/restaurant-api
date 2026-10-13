@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { billingApi } from "@/lib/api"
+import { setCachedCurrency } from "@/lib/useCurrency"
 import {
   CreditCard,
   Check,
@@ -198,6 +199,28 @@ export default function BillingPage() {
         <Clock className="w-5 h-5 text-gray-400" />
         Estado actual:{" "}
         <strong className="capitalize">{status?.subscription_status}</strong>
+        <span className="inline-flex items-center gap-1.5 ml-2 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700">
+          Moneda carta:
+          <select
+            value={status?.currency || "COP"}
+            disabled={!status?.restaurant_id}
+            onChange={async (e) => {
+              setError(null)
+              try {
+                await billingApi.setCurrency(status.restaurant_id, e.target.value)
+                const st = await billingApi.status()
+                setStatus(st)
+                setCachedCurrency(st.currency)
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "No se pudo cambiar la moneda")
+              }
+            }}
+            className="bg-transparent font-bold outline-none"
+          >
+            <option value="COP">COP ($)</option>
+            <option value="USD">USD ($)</option>
+          </select>
+        </span>
         {status?.current_period_end && (
           <span className="text-gray-500">
             · vigente hasta {new Date(status.current_period_end).toLocaleDateString()}

@@ -99,6 +99,20 @@ class CategoryOut(BaseModel):
     is_active: bool
     class Config: from_attributes = True
 
+MAX_PRICE = 999_999_999
+
+
+def _validate_price(v):
+    """Pesos y dólares sanos: no negativos, con tope anti-dedazos."""
+    if v is None:
+        return v
+    if v < 0:
+        raise ValueError("El precio no puede ser negativo")
+    if v > MAX_PRICE:
+        raise ValueError(f"El precio no puede superar {MAX_PRICE:,}")
+    return v
+
+
 class ProductCreate(BaseModel):
     category_id: int
     name: str
@@ -116,6 +130,11 @@ class ProductCreate(BaseModel):
             raise ValueError("category_id debe ser un entero positivo")
         return v
 
+    @field_validator("price", "promo_price")
+    @classmethod
+    def _price_sane(cls, v):
+        return _validate_price(v)
+
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
@@ -126,6 +145,11 @@ class ProductUpdate(BaseModel):
     is_featured: Optional[bool] = None
     is_promoted: Optional[bool] = None
     promo_price: Optional[float] = None
+
+    @field_validator("price", "promo_price")
+    @classmethod
+    def _price_sane(cls, v):
+        return _validate_price(v)
 
 class ProductOut(BaseModel):
     id: int

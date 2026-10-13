@@ -37,7 +37,7 @@ test("admin crea categoría y producto desde la UI", async ({ page }) => {
   await page.getByRole("button", { name: /productos/i }).click();
   await page.getByRole("button", { name: /nuevo producto/i }).click();
   await page.getByPlaceholder("Nombre del producto").fill(`Plato UI ${stamp}`);
-  await page.getByPlaceholder("0.00").fill("18000");
+  await page.getByPlaceholder(/12\.000/).fill("18000");
   await page.locator("select").first().selectOption({ index: 1 });
   await page.getByRole("button", { name: /crear producto/i }).click();
   await expect(page.getByText(`Plato UI ${stamp}`)).toBeVisible({ timeout: 15000 });
@@ -99,4 +99,24 @@ test("admin crea mesero y el mesero entra a su panel", async ({ page, request })
   await page.getByPlaceholder(/••••/).fill("meseropass123");
   await page.getByRole("button", { name: /entrar al sistema/i }).click();
   await expect(page).toHaveURL(/\/waiter/, { timeout: 20000 });
+});
+
+test("precio COP: se escribe 25000, se ve 25.000 y nunca .00", async ({ page }) => {
+  await uiLogin(page, ctx.email, ctx.password, /\/admin/);
+  await page.goto("/admin/menu");
+  await page.getByRole("button", { name: /productos/i }).click();
+  await page.getByRole("button", { name: /nuevo producto/i }).click();
+  const name = `Precio UI ${stamp}`;
+  await page.getByPlaceholder("Nombre del producto").fill(name);
+  // El input es texto con inputMode numérico: se teclea plano y se formatea.
+  const priceInput = page.getByPlaceholder(/12\.000/);
+  await priceInput.fill("25000");
+  await expect(priceInput).toHaveValue("25.000");
+  await page.locator("select").first().selectOption({ index: 1 });
+  await page.getByRole("button", { name: /crear producto/i }).click();
+  const card = page.locator("div.rounded-xl", { hasText: name }).first();
+  await expect(card).toBeVisible({ timeout: 15000 });
+  const priceText = await card.textContent();
+  expect(priceText.replace(/\s/g, " ")).toContain("$ 25.000");
+  expect(priceText).not.toMatch(/\$\s?[\d.]*\.\d{2}\b/);
 });

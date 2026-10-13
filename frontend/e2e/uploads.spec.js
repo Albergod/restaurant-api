@@ -24,7 +24,7 @@ test("producto con foto real se guarda y muestra preview", async ({ page }) => {
   await page.getByRole("button", { name: /productos/i }).click();
   await page.getByRole("button", { name: /nuevo producto/i }).click();
   await page.getByPlaceholder("Nombre del producto").fill(`Plato Foto ${stamp}`);
-  await page.getByPlaceholder("0.00").fill("20000");
+  await page.getByPlaceholder(/12\.000/).fill("20000");
   await page.locator("select").first().selectOption({ index: 1 });
   await page.locator('input[type="file"]').setInputFiles(REAL_PHOTO);
   await expect(page.getByAltText(/vista previa/i)).toBeVisible({ timeout: 20000 });

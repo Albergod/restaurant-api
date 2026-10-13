@@ -1,8 +1,11 @@
 "use client"
 
 import { Package } from "lucide-react"
+import { formatPrice } from "@/lib/money"
+import { useCurrency } from "@/lib/useCurrency"
 
 export default function OrderItems({ items }) {
+  const currency = useCurrency()
   if (!items || items.length === 0) return null
 
   return (
@@ -24,7 +27,7 @@ export default function OrderItems({ items }) {
                 )}
               </div>
               <p className="shrink-0 text-sm font-medium text-gray-900">
-                ${(Number(item.unit_price) * item.quantity).toFixed(2)}
+                {formatPrice(Number(item.unit_price) * item.quantity, currency)}
               </p>
             </div>
           </div>

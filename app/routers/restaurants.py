@@ -54,6 +54,7 @@ async def signup_restaurant(data: RestaurantSignup, db: AsyncSession = Depends(g
         "slug": restaurant.slug,
         "plan": restaurant.plan.value,
         "subscription_status": restaurant.subscription_status.value,
+        "currency": restaurant.currency or "COP",
         "access_token": token,
         "token_type": "bearer",
         "role": admin_user.role.value,
@@ -296,6 +297,30 @@ async def reactivate_restaurant(restaurant_id: int, db: AsyncSession = Depends(g
 
 
 TRIAL_DAYS = 14
+
+ALLOWED_CURRENCIES = ("COP", "USD")
+
+
+@router.post("/{restaurant_id}/currency", status_code=200)
+async def set_currency(restaurant_id: int, data: dict, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """Cambia la moneda de la carta (COP o USD). Solo el admin del restaurante.
+
+    En COP los precios se guardan sin centavos (redondeo al crear/editar).
+    """
+    restaurant = (await db.execute(select(Restaurant).where(Restaurant.id == restaurant_id))).scalar_one_or_none()
+    if not restaurant:
+        raise HTTPException(status_code=404, detail="Restaurante no encontrado")
+    is_owner = current_user["role"] == UserRole.admin.value and current_user.get("restaurant_id") == restaurant.id
+    if current_user["role"] != UserRole.superadmin.value and not is_owner:
+        raise HTTPException(status_code=403, detail="Solo el administrador del restaurante")
+    currency = str((data or {}).get("currency", "")).upper().strip()
+    if currency not in ALLOWED_CURRENCIES:
+        raise HTTPException(status_code=400, detail="Moneda inválida (usa COP o USD)")
+    restaurant.currency = currency
+    await db.commit()
+    await db.refresh(restaurant)
+    return {"id": restaurant.id, "currency": restaurant.currency}
+
 
 @router.post("/{restaurant_id}/trial", status_code=201)
 async def start_trial(restaurant_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):

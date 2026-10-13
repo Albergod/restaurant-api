@@ -8,6 +8,7 @@ import ProductCard from "@/components/admin/ProductCard"
 import ProductForm from "@/components/admin/ProductForm"
 import CategoryForm from "@/components/admin/CategoryForm"
 import DeleteDialog from "@/components/admin/DeleteDialog"
+import { useCurrency } from "@/lib/useCurrency"
 
 export default function AdminMenuPage() {
   const router = useRouter()
@@ -18,6 +19,7 @@ export default function AdminMenuPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [role] = useState(typeof window !== "undefined" ? getRole() : "")
+  const currency = useCurrency()
   const [activeTab, setActiveTab] = useState("products")
   const [categoryFilter, setCategoryFilter] = useState(null)
 
@@ -274,7 +276,7 @@ export default function AdminMenuPage() {
       )}
 
       <ProductForm form={form} onChange={setForm} categories={categories}
-        productDialog={productDialog} editingProduct={editingProduct}
+        productDialog={productDialog} editingProduct={editingProduct} currency={currency}
         onSave={saveProduct} onClose={() => setProductDialog(false)} onError={setError} />
 
       <CategoryForm catForm={catForm} onChange={setCatForm} categories={categories}

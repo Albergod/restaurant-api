@@ -63,4 +63,9 @@ export const billingApi = {
     apiFetch(`/api/billing/paddle/transaction/${transactionId}`),
   startTrial: (restaurantId) =>
     apiFetch(`/api/restaurants/${restaurantId}/trial`, { method: "POST" }),
+  setCurrency: (restaurantId, currency) =>
+    apiFetch(`/api/restaurants/${restaurantId}/currency`, {
+      method: "POST",
+      body: JSON.stringify({ currency }),
+    }),
 };

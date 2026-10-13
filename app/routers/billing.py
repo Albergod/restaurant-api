@@ -305,6 +305,7 @@ async def billing_status(db: AsyncSession = Depends(get_db), current_user: dict 
         "plan": restaurant.plan.value if restaurant.plan else "trial",
         "subscription_status": restaurant.subscription_status.value if restaurant.subscription_status else "trialing",
         "display_state": subscription_state(restaurant),
+        "currency": restaurant.currency or "COP",
         "trial_ends_at": restaurant.trial_ends_at.isoformat() if restaurant.trial_ends_at else None,
         "current_period_end": restaurant.current_period_end.isoformat() if restaurant.current_period_end else None,
         "paddle_available": _paddle_configured(),

@@ -1,10 +1,11 @@
 "use client"
 
 import { getImageUrl, getToken } from "@/lib/api"
+import { formatPrice, formatPriceInput, parsePriceInput } from "@/lib/money"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
-export default function ProductForm({ form, onChange, categories, productDialog, editingProduct, onSave, onClose, onError }) {
+export default function ProductForm({ form, onChange, categories, productDialog, editingProduct, onSave, onClose, onError, currency = "COP" }) {
   if (!productDialog) return null
 
   const price = Number(form.price)
@@ -66,9 +67,17 @@ export default function ProductForm({ form, onChange, categories, productDialog,
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">Precio</label>
-              <input type="number" step="0.01" value={form.price} onChange={(e) => onChange({ ...form, price: e.target.value })}
-                placeholder="0.00"
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                Precio {currency === "USD" ? "(USD)" : "(COP)"}
+              </label>
+              <input
+                inputMode="numeric"
+                value={formatPriceInput(form.price, currency)}
+                onChange={(e) => {
+                  const n = parsePriceInput(e.target.value, currency)
+                  onChange({ ...form, price: n === null ? "" : n })
+                }}
+                placeholder={currency === "USD" ? "Ej: 9.99" : "Ej: 12.000"}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition-colors focus:border-amber-400 focus:ring-2 focus:ring-amber-100" />
             </div>
             <div>
@@ -103,7 +112,7 @@ export default function ProductForm({ form, onChange, categories, productDialog,
               </div>
               {promoPrice !== null && (
                 <p className="mt-1.5 text-xs text-gray-500">
-                  Precio promocional: <span className="font-semibold text-red-500">${promoPrice.toFixed(2)}</span>
+                  Precio promocional: <span className="font-semibold text-red-500">{formatPrice(promoPrice, currency)}</span>
                 </p>
               )}
             </div>

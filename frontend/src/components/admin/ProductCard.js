@@ -2,8 +2,11 @@
 
 import { Trash2, Pencil, Eye, EyeOff, Star, Percent, Image } from "lucide-react"
 import { getImageUrl } from "@/lib/api"
+import { formatPrice } from "@/lib/money"
+import { useCurrency } from "@/lib/useCurrency"
 
 export default function ProductCard({ product, onToggle, onEdit, onDelete }) {
+  const currency = useCurrency()
   const isAvailable = product.is_available !== false
   return (
     <div className={`rounded-xl border bg-white shadow-sm transition-all hover:shadow-md overflow-hidden flex flex-col ${isAvailable ? "border-gray-200" : "border-dashed border-gray-300 opacity-60"}`}>
@@ -22,7 +25,7 @@ export default function ProductCard({ product, onToggle, onEdit, onDelete }) {
           )}
         </div>
         <p className="text-[10px] font-medium text-gray-400 truncate">{product.category_name || "Sin categoría"}</p>
-        <p className="text-base font-black text-gray-900">${Number(product.price).toFixed(2)}</p>
+        <p className="text-base font-black text-gray-900">{formatPrice(product.price, currency)}</p>
         <div className="mt-auto flex items-center justify-between pt-1">
           <div className="flex gap-1">
             <button onClick={() => onToggle(product.id, "is_available")}

@@ -1,12 +1,13 @@
 "use client"
 
+import { formatPrice } from "@/lib/money"
+import { useCurrency } from "@/lib/useCurrency"
+
 import { Tag, Plus } from "lucide-react"
 
-function formatPrice(price) {
-  return `$${Number(price).toFixed(2)}`
-}
 
 export default function PromotionsCarousel({ promotions, onAdd }) {
+  const currency = useCurrency()
   if (!promotions || promotions.length === 0) return null
 
   return (
@@ -28,10 +29,10 @@ export default function PromotionsCarousel({ promotions, onAdd }) {
               >
                 <div>
                   <p className="font-bold text-sm truncate">{p.name}</p>
-                  <p className="text-xs text-amber-100 line-through mt-1">{formatPrice(p.price)}</p>
+                  <p className="text-xs text-amber-100 line-through mt-1">{formatPrice(p.price, currency)}</p>
                 </div>
                 <div className="mt-2 flex items-center justify-between">
-                  <span className="font-black text-lg">{formatPrice(p.promo_price)}</span>
+                  <span className="font-black text-lg">{formatPrice(p.promo_price, currency)}</span>
                   <button onClick={() => onAdd(p)} className="bg-white text-orange-600 p-1.5 rounded-lg hover:bg-orange-50 transition-colors">
                     <Plus className="h-3 w-3" />
                   </button>

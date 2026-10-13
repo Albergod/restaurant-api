@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { apiFetch, getToken, getRole, logout } from "@/lib/api"
 import { useSubscription } from "@/lib/subscription"
+import { formatPrice } from "@/lib/money"
+import { useCurrency } from "@/lib/useCurrency"
 import OnboardingChecklist from "@/components/OnboardingChecklist"
 import {
   Users,
@@ -27,6 +29,7 @@ export default function AdminDashboard() {
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")
   const { state: subState, status: subStatus } = useSubscription()
+  const currency = useCurrency()
   const [stats, setStats] = useState({
     totalOrders: 0,
     pendingOrders: 0,
@@ -156,11 +159,11 @@ export default function AdminDashboard() {
     },
     {
       label: "Ingresos totales",
-      value: `$${stats.totalRevenue.toFixed(2)}`,
+      value: formatPrice(stats.totalRevenue, currency),
       icon: DollarSign,
       color: "bg-green-50 text-green-600",
       bg: "bg-green-500",
-      change: `$${stats.todayRevenue.toFixed(2)} hoy`,
+      change: `${formatPrice(stats.todayRevenue, currency)} hoy`,
       changeIcon: TrendingUp,
     },
     {
@@ -319,7 +322,7 @@ export default function AdminDashboard() {
           <div>
             <h2 className="text-sm font-bold text-gray-900">Historial de pedidos</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {filteredOrders.length} pedido(s) · ${filteredTotal.toFixed(2)} entregados
+              {filteredOrders.length} pedido(s) · {formatPrice(filteredTotal, currency)} entregados
             </p>
           </div>
           <div className="flex items-center gap-2 print:hidden">

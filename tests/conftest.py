@@ -62,6 +62,13 @@ async def app(pg_url, configure_db):
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # create_all no altera tablas viejas (la BD cc_test persiste): mismo
+        # parche idempotente que app/main.startup.
+        from sqlalchemy import text
+        await conn.execute(text(
+            "ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS "
+            "currency VARCHAR(3) DEFAULT 'COP'"
+        ))
 
     return fastapi_app
 

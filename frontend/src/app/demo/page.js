@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { API_URL } from "@/lib/api"
+import { formatPrice } from "@/lib/money"
 import { enableDemoTour } from "@/components/DemoTourTabs"
 import { ChefHat, ArrowRight, ArrowLeft, Loader2, AlertCircle, LayoutDashboard } from "lucide-react"
 
@@ -105,7 +106,7 @@ export default function DemoPage() {
                             {p.description && <p className="text-xs text-gray-500 line-clamp-1">{p.description}</p>}
                           </div>
                           <p className="font-black text-sm text-amber-600 shrink-0">
-                            ${Number(p.price).toLocaleString("es-CO")}
+                            {formatPrice(p.price, "COP")}
                           </p>
                         </div>
                       ))}

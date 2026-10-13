@@ -65,6 +65,8 @@ class Restaurant(Base):
     trial_started_at = Column(DateTime, nullable=True)
     trial_ends_at = Column(DateTime, nullable=True)
     current_period_end = Column(DateTime, nullable=True)
+    # Moneda de la carta: "COP" (pesos, sin centavos) o "USD". Default COP.
+    currency = Column(String(3), default="COP", server_default="COP", nullable=False)
     users = relationship("User", back_populates="restaurant")
     tables = relationship("Table", back_populates="restaurant")
     categories = relationship("Category", back_populates="restaurant")
