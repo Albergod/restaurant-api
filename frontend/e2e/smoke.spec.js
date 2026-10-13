@@ -218,11 +218,22 @@ test.describe("demo pública", () => {
     await expect(page.getByText(/tour demo/i).first()).toBeVisible({ timeout: 15000 });
     // En el tour no hay "Cerrar sesión": la única salida es el botón Salir.
     await expect(page.getByRole("button", { name: /cerrar sesión/i })).toHaveCount(0);
+    // Misión del panel + guías de carta y mesas.
+    await expect(page.getByText(/paso 1 de 4/i)).toBeVisible({ timeout: 15000 });
+    await page.getByRole("button", { name: /^menú$/i }).click();
+    await expect(page).toHaveURL(/\/admin\/menu/, { timeout: 15000 });
+    await expect(page.getByText(/mueve un plato de una a otra/i)).toBeVisible({ timeout: 15000 });
+    await page.getByRole("button", { name: /^mesas$/i }).click();
+    await expect(page).toHaveURL(/\/admin\/tables/, { timeout: 15000 });
+    await expect(page.getByText(/cada mesa tiene su qr/i)).toBeVisible({ timeout: 15000 });
+    await page.getByRole("button", { name: /^panel$/i }).click();
+    await expect(page).toHaveURL(/\/admin/, { timeout: 15000 });
 
     // Cliente: vista pública del menú con barra de retorno al tour.
     await page.getByRole("button", { name: /^cliente$/i }).click();
     await expect(page).toHaveURL(/\/menu\/.+\?.*tour=1/, { timeout: 20000 });
     await expect(page.getByText(/vista cliente/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/paso 2 de 4/i)).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(productName, { exact: false }).first()).toBeVisible({ timeout: 15000 });
 
     // El "cliente" pide de verdad (pedido público con el QR demo).
@@ -237,7 +248,8 @@ test.describe("demo pública", () => {
     await page.getByRole("button", { name: /volver al tour/i }).click();
     await expect(page).toHaveURL(/\/admin/, { timeout: 15000 });
     await page.getByRole("button", { name: /^mesero$/i }).click();
-    await expect(page).toHaveURL(/\/waiter/, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/waiter/, { timeout: 20000 });
+    await expect(page.getByText(/paso 3 de 4/i)).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(productName, { exact: false }).first()).toBeVisible({ timeout: 20000 });
 
     // Cocina: tras confirmar, el pedido aparece en cocina.
@@ -247,6 +259,7 @@ test.describe("demo pública", () => {
     expect(confirm.status()).toBe(200);
     await page.getByRole("button", { name: /^cocina$/i }).click();
     await expect(page).toHaveURL(/\/kitchen/, { timeout: 15000 });
+    await expect(page.getByText(/paso 4 de 4/i)).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(productName, { exact: false }).first()).toBeVisible({ timeout: 20000 });
 
     // Reiniciar: confirma el diálogo y espera la recarga real (si el reset

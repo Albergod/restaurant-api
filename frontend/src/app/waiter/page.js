@@ -6,6 +6,7 @@ import { apiFetch, logout, getRole, getToken } from "@/lib/api"
 import { useSubscription } from "@/lib/subscription"
 import SuspendedNotice from "@/components/SuspendedNotice"
 import DemoTourTabs, { isDemoTour } from "@/components/DemoTourTabs"
+import DemoSectionGuide from "@/components/DemoSectionGuide"
 import { User, LogOut, AlertCircle, Users, Search, Loader2 } from "lucide-react"
 import OrderCard from "@/components/waiter/OrderCard"
 
@@ -101,6 +102,7 @@ export default function WaiterPage() {
   return (
     <>
       <DemoTourTabs current="mesero" />
+      {inDemoTour && <DemoSectionGuide section="mesero" />}
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
       <header className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-4">

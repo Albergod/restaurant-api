@@ -5,6 +5,15 @@ import { useRouter, usePathname } from "next/navigation"
 import { getToken, getRole, logout } from "@/lib/api"
 import TrialBanner from "@/components/TrialBanner"
 import DemoTourTabs, { isDemoTour } from "@/components/DemoTourTabs"
+import DemoSectionGuide from "@/components/DemoSectionGuide"
+
+const DEMO_SECTIONS = {
+  "/admin": "panel",
+  "/admin/menu": "menu-admin",
+  "/admin/tables": "tables",
+  "/admin/users": "users",
+  "/admin/billing": "billing",
+}
 import {
   LayoutDashboard,
   Users,
@@ -136,6 +145,9 @@ export default function AdminLayout({ children }) {
         <main className="flex-1">
           <DemoTourTabs current="panel" />
           <TrialBanner />
+          {inDemoTour && DEMO_SECTIONS[pathname] && (
+            <DemoSectionGuide section={DEMO_SECTIONS[pathname]} />
+          )}
           {children}
         </main>
       </div>

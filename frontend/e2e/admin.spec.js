@@ -101,8 +101,7 @@ test("admin crea mesero y el mesero entra a su panel", async ({ page, request })
   await expect(page).toHaveURL(/\/waiter/, { timeout: 20000 });
 });
 
-test("precio COP: se escribe 25000, se ve 25.000 y nunca .00", async ({ page }) => {
-  await uiLogin(page, ctx.email, ctx.password, /\/admin/);
+test("precio COP: se escribe 25000, se ve 25.000 y nunca .00", async ({ page }) => {  await uiLogin(page, ctx.email, ctx.password, /\/admin/);
   await page.goto("/admin/menu");
   await page.getByRole("button", { name: /productos/i }).click();
   await page.getByRole("button", { name: /nuevo producto/i }).click();
@@ -119,4 +118,13 @@ test("precio COP: se escribe 25000, se ve 25.000 y nunca .00", async ({ page }) 
   const priceText = await card.textContent();
   expect(priceText.replace(/\s/g, " ")).toContain("$ 25.000");
   expect(priceText).not.toMatch(/\$\s?[\d.]*\.\d{2}\b/);
+});
+
+test("cuenta real no muestra guías demo", async ({ page }) => {
+  await uiLogin(page, ctx.email, ctx.password, /\/admin/);
+  await expect(page).toHaveURL(/\/admin/, { timeout: 20000 });
+  await expect(page.getByText(/paso 1 de 4/i)).toHaveCount(0);
+  await page.goto("/admin/menu");
+  await expect(page.getByText(/mueve un plato de una a otra/i)).toHaveCount(0);
+  await expect(page.getByText("TOUR DEMO")).toHaveCount(0);
 });

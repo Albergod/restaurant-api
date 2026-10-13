@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, Suspense } from "react"
 import { apiFetch } from "@/lib/api"
 import { DemoTourReturn } from "@/components/DemoTourTabs"
+import DemoSectionGuide from "@/components/DemoSectionGuide"
 import { useParams, useRouter } from "next/navigation"
 import { UtensilsCrossed, ShoppingCart, AlertCircle, Search, X } from "lucide-react"
 import ProductCard from "@/components/menu/ProductCard"
@@ -143,6 +144,9 @@ export default function MenuPage() {
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-orange-50 pb-28 selection:bg-amber-200">
       <Suspense fallback={null}>
         <DemoTourReturn />
+      </Suspense>
+      <Suspense fallback={null}>
+        <DemoSectionGuide section="cliente" />
       </Suspense>
       <header className="sticky top-0 z-20 glass backdrop-blur-xl border-b border-white/40">
         <div className="mx-auto max-w-2xl px-4 py-3 flex items-center justify-between">
